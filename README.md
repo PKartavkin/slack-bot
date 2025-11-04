@@ -1,2 +1,2 @@
 # slack-bot
-Slack Bot
+Here will be bot description later
