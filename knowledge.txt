@@ -1,0 +1,5 @@
+Python is a high-level programming language.
+Docker is a platform for containerized applications.
+Slack is a team messaging platform.
+Flask is a lightweight Python web framework.
+OpenAI provides APIs for AI models like GPT.

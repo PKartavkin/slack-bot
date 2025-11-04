@@ -9,7 +9,7 @@ SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
 SLACK_SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"]
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
-# Initialize Slack & OpenAI client
+# Initialize Slack & OpenAI
 app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
 slack_client = app.client
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -22,10 +22,25 @@ BOT_ID = slack_client.auth_test()["user_id"]
 # Keywords
 GRAMMAR_KEYWORDS = ["fix text", "check grammar", "check", "verify text"]
 BUG_KEYWORDS = ["create bug", "create jira defect", "create defect"]
+KNOWLEDGE_KEYWORDS = ["what is", "how", "where", "can we", "can I"]
+
+# Load knowledge base facts
+with open("knowledge.txt", "r") as f:
+    KNOWLEDGE_FACTS = [line.strip() for line in f if line.strip()]
 
 def contains_keyword(text, keywords):
     text_lower = text.lower()
     return any(k in text_lower for k in keywords)
+
+def find_fact(text):
+    """Return first fact that appears in the text, or None."""
+    text_lower = text.lower()
+    for fact in KNOWLEDGE_FACTS:
+        # If any keyword from the fact is in the text
+        for word in fact.lower().split():
+            if word in text_lower:
+                return fact
+    return None
 
 # Respond to mentions
 @app.event("app_mention")
@@ -34,10 +49,8 @@ def mention(event, say):
     channel = event.get("channel")
     user = event.get("user")
 
-    print(f"Received event from {user} in {channel}: {text}")
-
     if not user:
-        return  # ignore messages from bots
+        return  # ignore bot messages
 
     # Remove bot mention
     text = text.replace(f"<@{BOT_ID}>", "").strip()
@@ -61,8 +74,35 @@ def mention(event, say):
 
     # Bug creation (stub)
     if contains_keyword(text, BUG_KEYWORDS):
-        # TODO: implement Jira bug creation
         say("Bug creation command received. Implementation pending.")
+        return
+
+    # Knowledge base
+    if contains_keyword(text, KNOWLEDGE_KEYWORDS):
+        # Combine all facts into a single context string
+        context = "\n".join(KNOWLEDGE_FACTS)
+        prompt = f"""
+    Answer the question ONLY using the facts below. Keep it short. 
+    If the question cannot be answered with these facts, reply "IDK answer".
+
+    Facts:
+    {context}
+
+    Question:
+    {text}
+    """
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a concise and helpful assistant."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            answer = response.choices[0].message.content.strip()
+            say(answer)
+        except Exception as e:
+            say(f"Failed to get answer: {e}")
         return
 
     # Default echo
