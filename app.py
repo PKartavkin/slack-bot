@@ -2,26 +2,78 @@ import os
 from slack_bolt import App
 from slack_bolt.adapter.flask import SlackRequestHandler
 from flask import Flask, request
+from openai import OpenAI
 
-app = App(
-    token=os.environ["SLACK_BOT_TOKEN"],
-    signing_secret=os.environ["SLACK_SIGNING_SECRET"]
-)
+# Environment variables
+SLACK_BOT_TOKEN = os.environ["SLACK_BOT_TOKEN"]
+SLACK_SIGNING_SECRET = os.environ["SLACK_SIGNING_SECRET"]
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 
+# Initialize Slack & OpenAI client
+app = App(token=SLACK_BOT_TOKEN, signing_secret=SLACK_SIGNING_SECRET)
+slack_client = app.client
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(app)
+
+# Dynamically fetch bot ID
+BOT_ID = slack_client.auth_test()["user_id"]
+
+# Keywords
+GRAMMAR_KEYWORDS = ["fix text", "check grammar", "check", "verify text"]
+BUG_KEYWORDS = ["create bug", "create jira defect", "create defect"]
+
+def contains_keyword(text, keywords):
+    text_lower = text.lower()
+    return any(k in text_lower for k in keywords)
 
 # Respond to mentions
 @app.event("app_mention")
 def mention(event, say):
-    say(f"Received: {event['text']}")
+    text = event.get("text", "")
+    channel = event.get("channel")
+    user = event.get("user")
 
-# Route for Slack events
+    print(f"Received event from {user} in {channel}: {text}")
+
+    if not user:
+        return  # ignore messages from bots
+
+    # Remove bot mention
+    text = text.replace(f"<@{BOT_ID}>", "").strip()
+
+    # Grammar check
+    if contains_keyword(text, GRAMMAR_KEYWORDS):
+        prompt = f"Check grammar, return fixed text only: {text}"
+        try:
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant that fixes grammar."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            corrected_text = response.choices[0].message.content.strip()
+            say(corrected_text)
+        except Exception as e:
+            say(f"Failed to check grammar: {e}")
+        return
+
+    # Bug creation (stub)
+    if contains_keyword(text, BUG_KEYWORDS):
+        # TODO: implement Jira bug creation
+        say("Bug creation command received. Implementation pending.")
+        return
+
+    # Default echo
+    say(f"Received: {text}")
+
+# Slack events endpoint
 @flask_app.route("/slack/events", methods=["POST"])
 def slack_events():
     return handler.handle(request)
 
-# Healthcheck
+# Healthcheck endpoint
 @flask_app.route("/", methods=["GET"])
 def ping():
     return {"status": "ok"}
