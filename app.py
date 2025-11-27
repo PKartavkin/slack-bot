@@ -88,7 +88,7 @@ def slack_events():
     if team_id:
         increment_bot_invocations(team_id)
 
-    return handler.handle(request)  # SlackRequestHandler
+    return handler.handle(request)
 
 # Healthcheck endpoint
 @flask_app.route("/", methods=["GET"])
