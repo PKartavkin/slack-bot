@@ -34,6 +34,6 @@ jobs:
         run: |
           railway up \
             --service ${{ secrets.RAILWAY_SERVICE_ID }} \
-            --yes
+            --no-input
 
           echo "Deploy finished! Check: https://your-project.up.railway.app"
