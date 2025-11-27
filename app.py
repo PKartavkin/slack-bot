@@ -27,18 +27,19 @@ handler = SlackRequestHandler(slack_app)
 def handle_mention(event, say):
     text = event.get("text", "").lower()
 
+    team_id = event.get("team_id") or event.get("team", {}).get("id")
     if len(text) < 2:
         say("Hmm :)")
         return
 
     # Show bug report template
     if contains(text, ["show bug report", "bug report template"]):
-        say(show_bug_report_template())
+        say(show_bug_report_template(team_id))
         return
 
     # Generate bug report
     if contains(text, ["generate bug", "bug report", "format bug"]):
-        say(generate_bug_report(text))
+        say(generate_bug_report(text, team_id))
         return
 
     # Help
@@ -48,29 +49,29 @@ def handle_mention(event, say):
 
     # Edit bug report template
     if contains(text, ["edit bug report", "bug report template"]):
-        say(edit_bug_report_template(text))
+        say(edit_bug_report_template(text, team_id))
         return
 
     # Show project overview
     if contains(text, ["show project", "project details", "project info", "about the project", "about project"]):
-        say(show_project_overview())
+        say(show_project_overview(team_id))
         return
 
     # Update project overview
     if contains(text, ["update project", "update docs", "update specs", "update documentation"]):
-        say(update_project_overview(text))
+        say(update_project_overview(text, team_id))
         return
 
     # Use project overview for bug report generation
     if contains(text, ["use docs", "use documentation", "use project documentation", "enable doces"]):
-        set_use_documentation(True)
+        set_use_documentation(True, team_id)
         say("Bot will use project documentation")
         return
 
     # Use project overview for bug report generation
     if contains(text, ["ignore docs", "ignore documentation", "ignore project documentation", "disable docs"]):
-        set_use_documentation(False)
-        say("Bot will use project documentation")
+        set_use_documentation(False, team_id)
+        say("Bot won't use project documentation")
         return
 
     # Default fallback
@@ -89,6 +90,7 @@ def slack_events():
         increment_bot_invocations(team_id)
 
     return handler.handle(request)
+
 
 # Healthcheck endpoint
 @flask_app.route("/", methods=["GET"])

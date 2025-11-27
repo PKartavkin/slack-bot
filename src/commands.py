@@ -1,66 +1,21 @@
 import os
 from openai import OpenAI
+from src.db import orgs
 from src.logger import logger
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
-use_project_context = False
-
-project_context = """Optional project context:
-Chatbot platform with multi-space architecture.
-
-Organizations may include:
-- Content Bot: manages content shared to other bots.
-- Virtual Assistants (VA): custom behaviors per VA.
-- Institution (sub-organization): may have a VA.
-
-VA terms:
-- Custom Questions: user-defined, used in chatbot flows. Flows can include additional questions, videos, Live Chat triggers, forms, and authentication.
-- Global Questions (Content Pack): inherited from Content Bot; can be overridden.
-- Canned Responses: predefined text for Live Conversations.
-- System Variables: dynamic data used in questions and responses.
-- Live Conversation: user-operator chat.
-- SMS: message sending.
-- Campaigns: mass messaging with configurable flows.
-- Analytics: bot usage metrics.
-- User Role: Internal (Admin, System) or Regular (Live Agent, User, Guest, Custom).
-- Threat Detection: detects concerning messages.
-
-System components:
-- Bot Client: user-facing web or embedded interface.
-- Sandbox: test bot client in Admin Panel.
-- Admin Panel: content management, transcripts review, Live Chat, SMS.
-- System Settings: bot configuration, tokens, notifications.
-- Organization Pages: lists of VAs, members, and analytics.
-- Organization Settings: logo, name, custom roles, feature toggles.
-- Features: can be enabled or disabled per organization (Brain Crawler, Brain Files, SMS, Live Chat, System Variables, Global Questions).
-
-Quick Facts:
-- Most pages have a Filter panel and an Export button for data.
-- The bot can crawl web pages and use this data.
-- The Inbox page has two tabs: Virtual Assistant and Live Chat.
-- Global Search allows searching records and settings across all pages.
-- After most actions, the page displays a notification indicating the status of the action.
-"""
-
-
-bug_report_template = """
-Bug name:
-Steps:
-Actual result:
-Expected:
-"""
-
-def generate_bug_report(text: str) -> str:
+def generate_bug_report(text: str, team_id: str) -> str:
     logger.debug("Creating formatting")
-    context_block = project_context if use_project_context else ""
+    settings = get_settings(team_id)
+    context_block = settings["project_context"] if settings["use_project_context"] else ""
     prompt = f"""
     Convert the user's message into a bug report.
 
     {context_block}
 
     Use the following format exactly:
-    {bug_report_template}
+    {settings['bug_report_template']}
 
     Rules:
     - If project context is disabled or empty, ignore it.
@@ -82,29 +37,45 @@ def generate_bug_report(text: str) -> str:
     return response.choices[0].message.content.strip()
 
 
-def show_bug_report_template() -> str:
+def show_bug_report_template(team_id) -> str:
     logger.debug("Show bug report template")
-    return bug_report_template
+    settings = get_settings(team_id)
+    return settings["bug_report_template"]
 
 
-def edit_bug_report_template(text: str) -> str:
+def edit_bug_report_template(text: str, team_id: str) -> str:
     logger.debug("Editing bug report template")
-    return "NOT_IMPLEMENTED"
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.bug_report_template": text}},
+        upsert=True
+    )
+    return "Bug report template updated"
 
 
-def show_project_overview() -> str:
+def show_project_overview(team_id: str) -> str:
     logger.debug("Show project overview")
-    return project_context
+    settings = get_settings(team_id)
+    return settings["project_context"]
 
 
-def update_project_overview(text: str) -> str:
+def update_project_overview(text: str, team_id: str) -> str:
     logger.debug("Updating project overview")
-    return "NOT_IMPLEMENTED"
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.project_context": text}},
+        upsert=True
+    )
+    return "Project overview updated."
 
 
-def set_use_documentation(flag: bool) -> str:
+def set_use_documentation(flag: bool, team_id) -> str:
     logger.debug(f"Use documentation flag: {flag}")
-    use_project_context = flag
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.use_project_context": flag}},
+        upsert=True
+    )
     return f"Use documentation: {flag}"
 
 
@@ -120,3 +91,18 @@ def get_help() -> str:
     **use docs** - bot will used project documentation for bug reports
     **ignore docs** - bot will ignore docs
     """
+
+def get_settings(team_id: str):
+    org = orgs.find_one({"team_id": team_id})
+    if not org or "settings" not in org:
+        return {
+            "use_project_context": False,
+            "project_context": "",
+            "bug_report_template": """
+Bug name:
+Steps:
+Actual result:
+Expected:
+"""
+        }
+    return org["settings"]
