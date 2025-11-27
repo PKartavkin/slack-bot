@@ -32,8 +32,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           SLACK_SIGNING_SECRET: ${{ secrets.SLACK_SIGNING_SECRET }}
         run: |
-          railway up \
-            --service ${{ secrets.RAILWAY_SERVICE_ID }} \
-            --no-input
+          railway deploy \
+            --service ${{ secrets.RAILWAY_SERVICE_ID }}
 
           echo "Deploy finished! Check: https://your-project.up.railway.app"
