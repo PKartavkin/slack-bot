@@ -1,0 +1,9 @@
+{
+  "build": {
+    "args": {
+      "OPENAI_API_KEY": "${OPENAI_API_KEY}",
+      "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}",
+      "SLACK_SIGNING_SECRET": "${SLACK_SIGNING_SECRET}"
+    }
+  }
+}
