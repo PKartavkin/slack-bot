@@ -30,4 +30,4 @@ jobs:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           railway up --ci --service ${{ secrets.RAILWAY_SERVICE_ID }}
-          echo "Deploy finished! Check: https://your-project.up.railway.app"
+          echo "Deploy finished! Check: slack-bot-production-07ad.up.railway.app"
