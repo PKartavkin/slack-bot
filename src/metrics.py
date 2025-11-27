@@ -1,4 +1,4 @@
-from db import orgs
+from .db import orgs
 
 def init_or_get_org(team_id: str) -> dict:
     """
