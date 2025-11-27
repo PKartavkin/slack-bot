@@ -24,10 +24,10 @@ handler = SlackRequestHandler(slack_app)
 
 # Main event handler
 @slack_app.event("app_mention")
-def handle_mention(event, say):
+def handle_mention(event, say, body):
     text = event.get("text", "").lower()
 
-    team_id = event.get("team_id") or event.get("team", {}).get("id")
+    team_id = body.get("team_id") or event.get("team", {}).get("id")
     if len(text) < 2:
         say("Hmm :)")
         return
