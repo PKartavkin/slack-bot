@@ -9,6 +9,7 @@ from src.commands import (
     get_help, update_project_overview, set_use_documentation, show_project_overview, edit_bug_report_template,
     show_bug_report_template,
 )
+from src.metrics import increment_bot_invocations
 from src.utils import contains
 
 # Slack app setup
@@ -78,7 +79,9 @@ def handle_mention(event, say):
 
 
 @flask_app.route("/slack/events", methods=["POST"])
-def slack_events():
+def slack_events(event):
+    team_id = event["team_id"]
+    increment_bot_invocations(team_id)
     return handler.handle(request)
 
 
