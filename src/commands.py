@@ -5,10 +5,15 @@ from src.logger import logger
 
 client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
 
+
 def generate_bug_report(text: str, team_id: str) -> str:
     logger.debug("Creating formatting")
     settings = get_settings(team_id)
-    context_block = settings["project_context"] if settings["use_project_context"] else ""
+    context_block = (
+        settings["project_context"]
+        if settings["use_project_context"] and settings["project_context"].strip()
+        else ""
+    )
     prompt = f"""
     Convert the user's message into a bug report.
 
@@ -56,6 +61,8 @@ def edit_bug_report_template(text: str, team_id: str) -> str:
 def show_project_overview(team_id: str) -> str:
     logger.debug("Show project overview")
     settings = get_settings(team_id)
+    if not settings["project_context"].strip():
+        return "Project documentation is empty. Use *update docs* to add it."
     return settings["project_context"]
 
 
@@ -92,17 +99,39 @@ def get_help() -> str:
     **ignore docs** - bot will ignore docs
     """
 
+
 def get_settings(team_id: str):
-    org = orgs.find_one({"team_id": team_id})
-    if not org or "settings" not in org:
-        return {
-            "use_project_context": False,
-            "project_context": "",
-            "bug_report_template": """
+    DEFAULTS = {
+        "use_project_context": False,
+        "project_context": "",
+        "bug_report_template": """
 Bug name:
 Steps:
 Actual result:
 Expected:
 """
-        }
-    return org["settings"]
+    }
+
+    org = orgs.find_one({"team_id": team_id})
+
+    # If first interaction → create entry in DB
+    if not org:
+        orgs.insert_one({
+            "team_id": team_id,
+            "settings": DEFAULTS
+        })
+        return DEFAULTS
+
+    settings = org.get("settings", {})
+
+    # If settings exist but incomplete → fill missing fields (safe migration)
+    merged = {**DEFAULTS, **settings}
+
+    # If something was missing — update DB once
+    if merged != settings:
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {"settings": merged}}
+        )
+
+    return merged

@@ -10,7 +10,7 @@ from src.commands import (
     show_bug_report_template,
 )
 from src.metrics import increment_bot_invocations
-from src.utils import contains
+from src.utils import contains, strip_command
 
 # Slack app setup
 slack_app = App(
@@ -21,13 +21,15 @@ slack_app = App(
 flask_app = Flask(__name__)
 handler = SlackRequestHandler(slack_app)
 
-
 # Main event handler
 @slack_app.event("app_mention")
 def handle_mention(event, say, body):
     text = event.get("text", "").lower()
-
     team_id = body.get("team_id") or event.get("team", {}).get("id")
+
+    MIN_PROJECT_OVERVIEW_LENGTH = 50
+    MIN_BUG_REPORT_TEMPLATE_LENGTH = 25
+
     if len(text) < 2:
         say("Hmm :)")
         return
@@ -48,8 +50,13 @@ def handle_mention(event, say, body):
         return
 
     # Edit bug report template
-    if contains(text, ["edit bug report", "bug report template"]):
-        say(edit_bug_report_template(text, team_id))
+    edit_bug_report_template_keywords = ["edit bug report", "bug report template"]
+    if contains(text, edit_bug_report_template_keywords):
+        payload = strip_command(text, edit_bug_report_template_keywords)
+        if len(payload) < MIN_BUG_REPORT_TEMPLATE_LENGTH:
+            say(f"Bug report template is too short. Must be at least {MIN_BUG_REPORT_TEMPLATE_LENGTH} characters.")
+            return
+        say(edit_bug_report_template(payload, team_id))
         return
 
     # Show project overview
@@ -58,8 +65,13 @@ def handle_mention(event, say, body):
         return
 
     # Update project overview
-    if contains(text, ["update project", "update docs", "update specs", "update documentation"]):
-        say(update_project_overview(text, team_id))
+    update_project_overview_keywords = ["update project", "update docs", "update specs", "update documentation"]
+    if contains(text, update_project_overview_keywords):
+        payload = strip_command(text, update_project_overview_keywords)
+        if len(payload) < MIN_PROJECT_OVERVIEW_LENGTH:
+            say(f"Project description is too short. Must be at least {MIN_PROJECT_OVERVIEW_LENGTH} characters.")
+            return
+        say(update_project_overview(payload, team_id))
         return
 
     # Use project overview for bug report generation
@@ -68,7 +80,7 @@ def handle_mention(event, say, body):
         say("Bot will use project documentation")
         return
 
-    # Use project overview for bug report generation
+    # Ignore project overview for bug report generation
     if contains(text, ["ignore docs", "ignore documentation", "ignore project documentation", "disable docs"]):
         set_use_documentation(False, team_id)
         say("Bot won't use project documentation")
