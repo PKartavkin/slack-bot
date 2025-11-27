@@ -79,11 +79,16 @@ def handle_mention(event, say):
 
 
 @flask_app.route("/slack/events", methods=["POST"])
-def slack_events(event):
-    team_id = event["team_id"]
-    increment_bot_invocations(team_id)
-    return handler.handle(request)
+def slack_events():
+    data = request.json
+    if not data:
+        return "No JSON received", 400
 
+    team_id = data.get("team_id") or data.get("team", {}).get("id")
+    if team_id:
+        increment_bot_invocations(team_id)
+
+    return handler.handle(request)  # SlackRequestHandler
 
 # Healthcheck endpoint
 @flask_app.route("/", methods=["GET"])
