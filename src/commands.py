@@ -88,47 +88,35 @@ def generate_bug_report(text: str, team_id: str) -> str:
     return content
 
 
-def show_bug_report_template(team_id) -> str:
+def show_bug_report_template(team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Show bug report template")
-    settings = get_settings(team_id)
+    settings = get_settings(team_id, channel_id=channel_id)
     return settings["bug_report_template"]
 
 
-def edit_bug_report_template(text: str, team_id: str) -> str:
+def edit_bug_report_template(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Editing bug report template")
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.bug_report_template": text}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "bug_report_template", text)
     return "Bug report template updated"
 
 
-def show_project_overview(team_id: str) -> str:
+def show_project_overview(team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Show project overview")
-    settings = get_settings(team_id)
+    settings = get_settings(team_id, channel_id=channel_id)
     if not settings["project_context"].strip():
         return "Project documentation is empty. Use *update docs* to add it."
     return settings["project_context"]
 
 
-def update_project_overview(text: str, team_id: str) -> str:
+def update_project_overview(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Updating project overview")
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.project_context": text}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "project_context", text)
     return "Project overview updated."
 
 
-def set_use_documentation(flag: bool, team_id) -> str:
+def set_use_documentation(flag: bool, team_id: str, channel_id: str | None = None) -> str:
     logger.debug(f"Use documentation flag: {flag}")
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.use_project_context": flag}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "use_project_context", flag)
     return f"Use documentation: {flag}"
 
 
@@ -146,7 +134,7 @@ def get_help() -> str:
     """
 
 
-def set_jira_token(text: str, team_id: str):
+def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
     token = strip_command(text, ["set jira token", "update jira token"]).strip()
 
     if len(token) < 5:
@@ -159,16 +147,12 @@ def set_jira_token(text: str, team_id: str):
             f"Please ensure it's correct and shorter than {MAX_TOKEN_LENGTH} characters."
         )
 
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.jira_token": token}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "jira_token", token)
 
     return "Jira token has been updated."
 
 
-def set_jira_url(text: str, team_id: str):
+def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
     url = strip_command(text, ["set jira url", "update jira url"]).strip()
 
     if not (url.startswith("http://") or url.startswith("https://")):
@@ -181,16 +165,12 @@ def set_jira_url(text: str, team_id: str):
             f"Please provide a URL shorter than {MAX_URL_LENGTH} characters."
         )
 
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.jira_url": url}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "jira_url", url)
 
     return "Jira URL has been updated."
 
 
-def set_jira_bug_query(text: str, team_id: str):
+def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
     query = strip_command(
         text,
         ["set jira query", "jira bug query", "update jira query"]
@@ -206,22 +186,19 @@ def set_jira_bug_query(text: str, team_id: str):
             f"Please shorten it to under {MAX_QUERY_LENGTH} characters."
         )
 
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {"settings.jira_bug_query": query}},
-        upsert=True
-    )
+    _update_settings_field(team_id, channel_id, "jira_bug_query", query)
 
     return "Jira bug query has been updated."
 
 
-def show_jira_bug_query(team_id: str):
-    org = orgs.find_one({"team_id": team_id}, {"settings": 1})
+def show_jira_bug_query(team_id: str, channel_id: str | None = None):
+    org = orgs.find_one({"team_id": team_id}, {"settings": 1, "projects": 1, "channel_projects": 1})
 
-    if not org or "settings" not in org:
+    if not org or "settings" not in org and "projects" not in org:
         return "No Jira settings found yet."
-
-    query = org["settings"].get("jira_bug_query")
+    # Reuse get_settings so project-specific overrides are applied if channel/project is set.
+    settings = get_settings(team_id, channel_id=channel_id)
+    query = settings.get("jira_bug_query")
 
     if not query:
         return "Jira bug query is not set."
@@ -229,7 +206,7 @@ def show_jira_bug_query(team_id: str):
     return f"Current Jira bug query:\n```\n{query}\n```"
 
 
-def get_settings(team_id: str):
+def get_settings(team_id: str, channel_id: str | None = None):
     DEFAULTS = {
         "use_project_context": False,
         "project_context": "",
@@ -245,27 +222,57 @@ Expected:
 
     org = orgs.find_one({"team_id": team_id})
 
-    # If first interaction → create entry in DB
+    # If first interaction → create entry in DB with base settings
     if not org:
-        orgs.insert_one({
-            "team_id": team_id,
-            "settings": DEFAULTS
-        })
+        orgs.insert_one(
+            {
+                "team_id": team_id,
+                "settings": DEFAULTS,
+            }
+        )
         return DEFAULTS
 
     settings = org.get("settings", {})
 
     # If settings exist but incomplete → fill missing fields (safe migration)
-    merged = {**DEFAULTS, **settings}
+    merged_settings = {**DEFAULTS, **settings}
 
     # If something was missing — update DB once
-    if merged != settings:
+    if merged_settings != settings:
         orgs.update_one(
             {"team_id": team_id},
-            {"$set": {"settings": merged}}
+            {"$set": {"settings": merged_settings}},
         )
 
-    return merged
+    # If no channel context or multi-project is not used yet → return org-level settings
+    if channel_id is None:
+        return merged_settings
+
+    channel_projects = org.get("channel_projects") or {}
+    project_name = channel_projects.get(channel_id)
+
+    # If this channel is not yet bound to a specific project, use org-level settings
+    if not project_name:
+        return merged_settings
+
+    # Resolve / migrate project-specific settings
+    projects = org.get("projects") or {}
+    project_settings = projects.get(project_name, {})
+
+    # Use org-level settings (minus purely org-scoped fields) as defaults for the project
+    project_defaults = {
+        k: v for k, v in merged_settings.items() if k != "channel_welcomes"
+    }
+    merged_project_settings = {**project_defaults, **project_settings}
+
+    # Persist back if something changed (safe migration / initialization)
+    if merged_project_settings != project_settings:
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {f"projects.{project_name}": merged_project_settings}},
+        )
+
+    return merged_project_settings
 
 
 def mark_channel_welcome_shown(team_id: str, channel_id: str) -> None:
@@ -275,5 +282,79 @@ def mark_channel_welcome_shown(team_id: str, channel_id: str) -> None:
     orgs.update_one(
         {"team_id": team_id},
         {"$set": {f"settings.channel_welcomes.{channel_id}": True}},
+        upsert=True,
+    )
+
+
+def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
+    """
+    Bind this Slack channel to a named project configuration within the org.
+    If the project does not exist yet, it will be created using current org-level settings as defaults.
+    """
+    project_name = strip_command(
+        text,
+        ["use project", "switch project", "select project"],
+    ).strip()
+
+    if not project_name:
+        return (
+            "Please provide a project name. Example:\n"
+            "`use project Mobile app`"
+        )
+
+    if len(project_name) > 128:
+        return "Project name is too long. Please use a shorter name (<= 128 characters)."
+
+    # Store channel → project binding
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {f"channel_projects.{channel_id}": project_name}},
+        upsert=True,
+    )
+
+    # Ensure project settings exist (this will also apply defaults if needed)
+    get_settings(team_id, channel_id=channel_id)
+
+    return f"Channel is now using project configuration *{project_name}*."
+
+
+def list_projects(team_id: str) -> str:
+    org = orgs.find_one({"team_id": team_id}, {"projects": 1})
+    projects = sorted((org or {}).get("projects", {}).keys())
+
+    if not projects:
+        return (
+            "No project configurations found yet.\n"
+            "You can create one by mentioning me and saying, for example:\n"
+            "`use project Mobile app`"
+        )
+
+    lines = ["Available project configurations:"]
+    lines.extend(f"- {name}" for name in projects)
+    return "\n".join(lines)
+
+
+def _update_settings_field(team_id: str, channel_id: str | None, field: str, value) -> None:
+    """
+    Update a configuration field, preferring project-scoped settings when a channel
+    is bound to a project, otherwise falling back to org-level settings.
+    """
+    org = orgs.find_one({"team_id": team_id}) or {}
+
+    if channel_id is not None:
+        channel_projects = org.get("channel_projects") or {}
+        project_name = channel_projects.get(channel_id)
+        if project_name:
+            orgs.update_one(
+                {"team_id": team_id},
+                {"$set": {f"projects.{project_name}.{field}": value}},
+                upsert=True,
+            )
+            return
+
+    # Fallback: update org-level settings
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {f"settings.{field}": value}},
         upsert=True,
     )

@@ -21,6 +21,8 @@ from src.commands import (
     show_jira_bug_query,
     get_settings,
     mark_channel_welcome_shown,
+    set_channel_project,
+    list_projects,
 )
 from src.metrics import increment_bot_invocations
 from src.utils import contains, strip_command
@@ -73,14 +75,27 @@ def handle_mention(event, say, body):
             )
             mark_channel_welcome_shown(team_id, channel_id)
 
+    # Project configuration selection / discovery
+    if contains(text, ["list projects", "show projects"]):
+        say(list_projects(team_id))
+        return
+
+    if contains(text, ["use project", "switch project", "select project"]):
+        if not channel_id:
+            say("I couldn't detect the channel for this request.")
+            return
+        say(set_channel_project(text, team_id, channel_id))
+        return
+
     # Show bug report template
     if contains(text, ["show bug report", "bug report template"]):
-        say(show_bug_report_template(team_id))
+        say(show_bug_report_template(team_id, channel_id=channel_id))
         return
 
     # Generate bug report
     if contains(text, ["generate bug", "bug report", "format bug"]):
-        say(generate_bug_report(text, team_id))
+        # Pass channel_id so project-specific configuration is used if set.
+        say(generate_bug_report(text, team_id, channel_id=channel_id))
         return
 
     # Help
@@ -98,7 +113,7 @@ def handle_mention(event, say, body):
                 f"Must be at least {MIN_BUG_REPORT_TEMPLATE_LENGTH} characters."
             )
             return
-        say(edit_bug_report_template(payload, team_id))
+        say(edit_bug_report_template(payload, team_id, channel_id=channel_id))
         return
 
     # Show project overview
@@ -112,7 +127,7 @@ def handle_mention(event, say, body):
             "about project",
         ],
     ):
-        say(show_project_overview(team_id))
+        say(show_project_overview(team_id, channel_id=channel_id))
         return
 
     # Update project overview
@@ -130,7 +145,7 @@ def handle_mention(event, say, body):
                 f"Must be at least {MIN_PROJECT_OVERVIEW_LENGTH} characters."
             )
             return
-        say(update_project_overview(payload, team_id))
+        say(update_project_overview(payload, team_id, channel_id=channel_id))
         return
 
     # Use project overview for bug report generation
@@ -143,7 +158,7 @@ def handle_mention(event, say, body):
             "enable doces",
         ],
     ):
-        set_use_documentation(True, team_id)
+        set_use_documentation(True, team_id, channel_id=channel_id)
         say("Bot will use project documentation")
         return
 
@@ -157,28 +172,28 @@ def handle_mention(event, say, body):
             "disable docs",
         ],
     ):
-        set_use_documentation(False, team_id)
+        set_use_documentation(False, team_id, channel_id=channel_id)
         say("Bot won't use project documentation")
         return
 
     # Set Jira Token
     if contains(text, ["set jira token", "update jira token"]):
-        say(set_jira_token(text, team_id))
+        say(set_jira_token(text, team_id, channel_id=channel_id))
         return
 
     # Set Jira URL
     if contains(text, ["set jira url", "update jira url"]):
-        say(set_jira_url(text, team_id))
+        say(set_jira_url(text, team_id, channel_id=channel_id))
         return
 
     # Set Jira Bug Query
     if contains(text, ["set jira query", "jira bug query", "update jira query"]):
-        say(set_jira_bug_query(text, team_id))
+        say(set_jira_bug_query(text, team_id, channel_id=channel_id))
         return
 
     # Show Jira Bug Query
     if contains(text, ["show jira query", "show bug query", "jira query"]):
-        say(show_jira_bug_query(team_id))
+        say(show_jira_bug_query(team_id, channel_id=channel_id))
         return
 
     # Default fallback
