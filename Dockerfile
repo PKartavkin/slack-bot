@@ -11,5 +11,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app.py .
 COPY src/ ./src/
 
-# Run the app
-CMD ["python", "app.py"]
+# Run the app with uvicorn (FastAPI)
+CMD ["uvicorn", "app:fastapi_app", "--host", "0.0.0.0", "--port", "3000"]
