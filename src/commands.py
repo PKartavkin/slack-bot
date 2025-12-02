@@ -1,12 +1,33 @@
 import os
+
 from openai import OpenAI
+
 from src.db import orgs
 from src.logger import logger
+from src.utils import strip_command
 
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+# Initialize OpenAI client lazily / defensively so missing env vars
+# do not break module import (which would cause ImportError in app.py).
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if OPENAI_API_KEY:
+    client = OpenAI(api_key=OPENAI_API_KEY)
+else:
+    client = None
+    logger.warning(
+        "OPENAI_API_KEY is not set; bug report generation will be disabled."
+    )
 
 
+# ToDo: make several small files, like jira_commands.....
 def generate_bug_report(text: str, team_id: str) -> str:
+    if client is None:
+        logger.error("OPENAI_API_KEY not configured; cannot generate bug report.")
+        return (
+            "Bug report generation is temporarily unavailable: "
+            "missing OpenAI configuration."
+        )
+
     logger.debug("Creating formatting")
     settings = get_settings(team_id)
     context_block = (
@@ -98,6 +119,68 @@ def get_help() -> str:
     **use docs** - bot will used project documentation for bug reports
     **ignore docs** - bot will ignore docs
     """
+
+
+def set_jira_token(text: str, team_id: str):
+    token = strip_command(text, ["set jira token", "update jira token"]).strip()
+
+    if len(token) < 5:
+        return "Jira token looks too short. Please send a valid token."
+
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.jira_token": token}},
+        upsert=True
+    )
+
+    return "Jira token has been updated."
+
+
+def set_jira_url(text: str, team_id: str):
+    url = strip_command(text, ["set jira url", "update jira url"]).strip()
+
+    if not (url.startswith("http://") or url.startswith("https://")):
+        return "Jira URL should start with http:// or https://"
+
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.jira_url": url}},
+        upsert=True
+    )
+
+    return "Jira URL has been updated."
+
+
+def set_jira_bug_query(text: str, team_id: str):
+    query = strip_command(
+        text,
+        ["set jira query", "jira bug query", "update jira query"]
+    ).strip()
+
+    if len(query) < 5:
+        return "Jira query looks too short. Please provide a valid JQL query."
+
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {"settings.jira_bug_query": query}},
+        upsert=True
+    )
+
+    return "Jira bug query has been updated."
+
+
+def show_jira_bug_query(team_id: str):
+    org = orgs.find_one({"team_id": team_id}, {"settings": 1})
+
+    if not org or "settings" not in org:
+        return "No Jira settings found yet."
+
+    query = org["settings"].get("jira_bug_query")
+
+    if not query:
+        return "Jira bug query is not set."
+
+    return f"Current Jira bug query:\n```\n{query}\n```"
 
 
 def get_settings(team_id: str):
