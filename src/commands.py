@@ -28,6 +28,16 @@ def generate_bug_report(text: str, team_id: str) -> str:
             "missing OpenAI configuration."
         )
 
+    MAX_INPUT_LENGTH = 4000
+    if len(text) > MAX_INPUT_LENGTH:
+        logger.warning(
+            "Bug report input too long (len=%s) for team_id=%s", len(text), team_id
+        )
+        return (
+            f"Your message is too long for bug report generation. "
+            f"Please shorten it to under {MAX_INPUT_LENGTH} characters."
+        )
+
     logger.debug("Creating formatting")
     settings = get_settings(team_id)
     context_block = (
@@ -54,13 +64,28 @@ def generate_bug_report(text: str, team_id: str) -> str:
     User input: {text}
     """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
-    )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+    except Exception as e:  # noqa: BLE001 - want to catch all OpenAI client errors
+        logger.exception("OpenAI error while generating bug report for team_id=%s", team_id)
+        return (
+            "I couldn't generate a bug report due to an internal error talking to the AI service. "
+            "Please try again in a bit."
+        )
 
-    return response.choices[0].message.content.strip()
+    content = (response.choices[0].message.content or "").strip()
+    if not content:
+        logger.error("OpenAI returned empty content for bug report, team_id=%s", team_id)
+        return (
+            "I couldn't generate a bug report from this message. "
+            "Please try rephrasing or adding more details."
+        )
+
+    return content
 
 
 def show_bug_report_template(team_id) -> str:
@@ -127,6 +152,13 @@ def set_jira_token(text: str, team_id: str):
     if len(token) < 5:
         return "Jira token looks too short. Please send a valid token."
 
+    MAX_TOKEN_LENGTH = 4096
+    if len(token) > MAX_TOKEN_LENGTH:
+        return (
+            f"Jira token looks unusually long. "
+            f"Please ensure it's correct and shorter than {MAX_TOKEN_LENGTH} characters."
+        )
+
     orgs.update_one(
         {"team_id": team_id},
         {"$set": {"settings.jira_token": token}},
@@ -141,6 +173,13 @@ def set_jira_url(text: str, team_id: str):
 
     if not (url.startswith("http://") or url.startswith("https://")):
         return "Jira URL should start with http:// or https://"
+
+    MAX_URL_LENGTH = 2048
+    if len(url) > MAX_URL_LENGTH:
+        return (
+            f"Jira URL is too long. "
+            f"Please provide a URL shorter than {MAX_URL_LENGTH} characters."
+        )
 
     orgs.update_one(
         {"team_id": team_id},
@@ -159,6 +198,13 @@ def set_jira_bug_query(text: str, team_id: str):
 
     if len(query) < 5:
         return "Jira query looks too short. Please provide a valid JQL query."
+
+    MAX_QUERY_LENGTH = 8000
+    if len(query) > MAX_QUERY_LENGTH:
+        return (
+            f"Jira query is too long. "
+            f"Please shorten it to under {MAX_QUERY_LENGTH} characters."
+        )
 
     orgs.update_one(
         {"team_id": team_id},

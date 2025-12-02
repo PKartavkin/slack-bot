@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from slack_bolt import App
 from slack_bolt.adapter.fastapi import SlackRequestHandler
+from starlette.concurrency import run_in_threadpool
 
 from src.logger import logger
 from src.commands import (
@@ -40,11 +41,19 @@ def handle_mention(event, say, body):
     text = event.get("text", "").lower()
     team_id = body.get("team_id") or event.get("team", {}).get("id")
 
+    MAX_TEXT_LENGTH = 4000
     MIN_PROJECT_OVERVIEW_LENGTH = 50
     MIN_BUG_REPORT_TEMPLATE_LENGTH = 25
 
     if len(text) < 2:
         say("Hmm :)")
+        return
+
+    if len(text) > MAX_TEXT_LENGTH:
+        say(
+            f"Your message is too long ({len(text)} characters). "
+            f"Please shorten it to under {MAX_TEXT_LENGTH} characters."
+        )
         return
 
     # Show bug report template
@@ -169,8 +178,8 @@ async def slack_events(request: Request):
 
     team_id = data.get("team_id") or (data.get("team") or {}).get("id")
     if team_id:
-        # This is a quick counter increment, acceptable as sync I/O here.
-        increment_bot_invocations(team_id)
+        # Offload MongoDB write to thread pool so we don't block the event loop.
+        await run_in_threadpool(increment_bot_invocations, team_id)
 
     # Delegate to Slack Bolt FastAPI handler
     response = await handler.handle(request)
