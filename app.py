@@ -24,6 +24,7 @@ from src.commands import (
     set_channel_welcome_shown,
     set_channel_project,
     list_projects,
+    show_channel_status,
 )
 from src.metrics import increment_bot_invocations
 from src.utils import contains, strip_command, strip_leading_mention
@@ -67,6 +68,7 @@ def handle_mention(event, say, body):
                 "Type *help* or *info* in a mention to see available commands."
             )
             set_channel_welcome_shown(team_id, channel_id, True)
+            return
 
     if len(clean_text) < MIN_TEXT_LENGTH:
         say("Hmm :)")
@@ -90,6 +92,11 @@ def handle_mention(event, say, body):
             say("I couldn't detect the channel for this request.")
             return
         say(set_channel_project(text, team_id, channel_id))
+        return
+
+    # Show channel status
+    if contains(text, ["channel status", "show status", "status", "channel info"]):
+        say(show_channel_status(team_id, channel_id))
         return
 
     # Show bug report template

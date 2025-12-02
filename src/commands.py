@@ -362,6 +362,26 @@ def list_projects(team_id: str) -> str:
     return "\n".join(lines)
 
 
+def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
+    """
+    Get the project name bound to a channel from channel_projects.
+    Returns None if channel is not bound to a project.
+    """
+    org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
+    if not org:
+        return None
+    
+    channel_projects = org.get("channel_projects") or {}
+    channel_info = channel_projects.get(channel_id)
+    
+    if isinstance(channel_info, dict):
+        return channel_info.get("project")
+    elif channel_info:
+        # Handle old format where channel_id directly maps to project name
+        return channel_info
+    return None
+
+
 def get_channel_welcome_shown(team_id: str, channel_id: str) -> bool:
     """
     Get whether the welcome message has been shown for a channel from channel_projects.
@@ -388,6 +408,32 @@ def set_channel_welcome_shown(team_id: str, channel_id: str, value: bool) -> Non
         {"$set": {f"channel_projects.{channel_id}.welcome_shown": value}},
         upsert=True,
     )
+
+
+def show_channel_status(team_id: str, channel_id: str | None) -> str:
+    """
+    Show the current channel status including project name, project context, use_project_context flag,
+    Jira URL, and Jira token status.
+    """
+    if not channel_id:
+        return "Channel status is only available when called from a channel."
+    
+    project_name = get_channel_project_name(team_id, channel_id)
+    settings = get_settings(team_id, channel_id=channel_id)
+    
+    project_context = settings.get("project_context", "").strip()
+    use_project_context = settings.get("use_project_context", False)
+    jira_url = settings.get("jira_url", "").strip()
+    jira_token = settings.get("jira_token", "").strip()
+    
+    lines = []
+    lines.append(f"*Project name:* {project_name if project_name else 'N/A'}")
+    lines.append(f"*Project context:* {project_context if project_context else 'N/A'}")
+    lines.append(f"*Use project context:* {use_project_context}")
+    lines.append(f"*Jira URL:* {jira_url if jira_url else 'N/A'}")
+    lines.append(f"*Jira token:* {'set' if jira_token else 'not set'}")
+    
+    return "\n".join(lines)
 
 
 def _update_settings_field(team_id: str, channel_id: str | None, field: str, value) -> None:
