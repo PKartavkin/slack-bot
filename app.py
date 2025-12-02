@@ -19,6 +19,8 @@ from src.commands import (
     set_jira_url,
     set_jira_bug_query,
     show_jira_bug_query,
+    get_settings,
+    mark_channel_welcome_shown,
 )
 from src.metrics import increment_bot_invocations
 from src.utils import contains, strip_command
@@ -40,6 +42,7 @@ handler = SlackRequestHandler(slack_app)
 def handle_mention(event, say, body):
     text = event.get("text", "").lower()
     team_id = body.get("team_id") or event.get("team", {}).get("id")
+    channel_id = event.get("channel")
 
     MAX_TEXT_LENGTH = 4000
     MIN_PROJECT_OVERVIEW_LENGTH = 50
@@ -55,6 +58,20 @@ def handle_mention(event, say, body):
             f"Please shorten it to under {MAX_TEXT_LENGTH} characters."
         )
         return
+
+    # Per-channel welcome message on first mention in that channel
+    if team_id and channel_id:
+        settings = get_settings(team_id)
+        channel_welcomes = settings.get("channel_welcomes", {})
+        if not channel_welcomes.get(channel_id):
+            say(
+                "👋 Hi! I'm your QA helper bot. I can:\n"
+                "- Format your messages into structured bug reports\n"
+                "- Store project documentation and use it when generating bugs\n"
+                "- Help you manage Jira-related settings\n\n"
+                "Type *help* or *info* in a mention to see available commands."
+            )
+            mark_channel_welcome_shown(team_id, channel_id)
 
     # Show bug report template
     if contains(text, ["show bug report", "bug report template"]):

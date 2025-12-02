@@ -233,6 +233,8 @@ def get_settings(team_id: str):
     DEFAULTS = {
         "use_project_context": False,
         "project_context": "",
+        # channel_id -> bool (whether welcome message was shown in that channel)
+        "channel_welcomes": {},
         "bug_report_template": """
 Bug name:
 Steps:
@@ -264,3 +266,14 @@ Expected:
         )
 
     return merged
+
+
+def mark_channel_welcome_shown(team_id: str, channel_id: str) -> None:
+    """
+    Mark that the welcome message has been shown in this channel for this team.
+    """
+    orgs.update_one(
+        {"team_id": team_id},
+        {"$set": {f"settings.channel_welcomes.{channel_id}": True}},
+        upsert=True,
+    )
