@@ -25,7 +25,7 @@ from src.commands import (
     list_projects,
 )
 from src.metrics import increment_bot_invocations
-from src.utils import contains, strip_command
+from src.utils import contains, strip_command, strip_leading_mention
 
 # Slack app setup
 slack_app = App(
@@ -42,7 +42,10 @@ handler = SlackRequestHandler(slack_app)
 # Main event handler
 @slack_app.event("app_mention")
 def handle_mention(event, say, body):
-    text = event.get("text", "").lower()
+    raw_text = event.get("text", "") or ""
+    # Strip leading '<@BOTID>' mention so length checks and commands work on real text.
+    clean_text = strip_leading_mention(raw_text)
+    text = clean_text.lower()
     team_id = body.get("team_id") or event.get("team", {}).get("id")
     channel_id = event.get("channel")
 
@@ -50,13 +53,13 @@ def handle_mention(event, say, body):
     MIN_PROJECT_OVERVIEW_LENGTH = 50
     MIN_BUG_REPORT_TEMPLATE_LENGTH = 25
 
-    if len(text) < 2:
+    if len(clean_text) < 2:
         say("Hmm :)")
         return
 
-    if len(text) > MAX_TEXT_LENGTH:
+    if len(clean_text) > MAX_TEXT_LENGTH:
         say(
-            f"Your message is too long ({len(text)} characters). "
+            f"Your message is too long ({len(clean_text)} characters). "
             f"Please shorten it to under {MAX_TEXT_LENGTH} characters."
         )
         return

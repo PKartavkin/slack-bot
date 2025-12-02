@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from openai import OpenAI
 
@@ -224,13 +225,22 @@ Expected:
 
     # If first interaction → create entry in DB with base settings
     if not org:
-        orgs.insert_one(
-            {
-                "team_id": team_id,
-                "settings": DEFAULTS,
-            }
-        )
+        org = {
+            "team_id": team_id,
+            "settings": DEFAULTS,
+            "joined_date": datetime.utcnow(),
+        }
+        orgs.insert_one(org)
         return DEFAULTS
+
+    # Backfill joined_date for existing organizations
+    if "joined_date" not in org:
+        joined = datetime.utcnow()
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {"joined_date": joined}},
+        )
+        org["joined_date"] = joined
 
     settings = org.get("settings", {})
 

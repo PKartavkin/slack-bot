@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from .db import orgs
 
 def init_or_get_org(team_id: str) -> dict:
@@ -6,9 +8,24 @@ def init_or_get_org(team_id: str) -> dict:
     """
     org = orgs.find_one({"team_id": team_id})
     if not org:
-        # Create new org with initial metrics
-        org = {"team_id": team_id, "bot_invocations_total": 0}
+        # Create new org with initial metrics and joined_date
+        org = {
+            "team_id": team_id,
+            "bot_invocations_total": 0,
+            "joined_date": datetime.utcnow(),
+        }
         orgs.insert_one(org)
+        return org
+
+    # Backfill joined_date for existing orgs
+    if "joined_date" not in org:
+        joined = datetime.utcnow()
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {"joined_date": joined}},
+        )
+        org["joined_date"] = joined
+
     return org
 
 def increment_bot_invocations(team_id: str):
