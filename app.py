@@ -48,21 +48,11 @@ def handle_mention(event, say, body):
     text = clean_text.lower()
     team_id = body.get("team_id") or event.get("team", {}).get("id")
     channel_id = event.get("channel")
-
-    MAX_TEXT_LENGTH = 4000
+    
+    MIN_TEXT_LENGTH = 3
+    MAX_TEXT_LENGTH = 1000
     MIN_PROJECT_OVERVIEW_LENGTH = 50
     MIN_BUG_REPORT_TEMPLATE_LENGTH = 25
-
-    if len(clean_text) < 2:
-        say("Hmm :)")
-        return
-
-    if len(clean_text) > MAX_TEXT_LENGTH:
-        say(
-            f"Your message is too long ({len(clean_text)} characters). "
-            f"Please shorten it to under {MAX_TEXT_LENGTH} characters."
-        )
-        return
 
     # Per-channel welcome message on first mention in that channel
     if team_id and channel_id:
@@ -77,6 +67,19 @@ def handle_mention(event, say, body):
                 "Type *help* or *info* in a mention to see available commands."
             )
             mark_channel_welcome_shown(team_id, channel_id)
+        return
+
+    if len(clean_text) < MIN_TEXT_LENGTH:
+        say("Hmm :)")
+        return
+
+    if len(clean_text) > MAX_TEXT_LENGTH:
+        say(
+            f"Your message is too long ({len(clean_text)} characters). "
+            f"Please shorten it to under {MAX_TEXT_LENGTH} characters."
+        )
+        return
+
 
     # Project configuration selection / discovery
     if contains(text, ["list projects", "show projects"]):
