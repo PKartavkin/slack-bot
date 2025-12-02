@@ -20,7 +20,8 @@ from src.commands import (
     set_jira_bug_query,
     show_jira_bug_query,
     get_settings,
-    mark_channel_welcome_shown,
+    get_channel_welcome_shown,
+    set_channel_welcome_shown,
     set_channel_project,
     list_projects,
 )
@@ -56,9 +57,8 @@ def handle_mention(event, say, body):
 
     # Per-channel welcome message on first mention in that channel
     if team_id and channel_id:
-        settings = get_settings(team_id)
-        channel_welcomes = settings.get("channel_welcomes", {})
-        if not channel_welcomes.get(channel_id):
+        welcome_shown = get_channel_welcome_shown(team_id, channel_id)
+        if not welcome_shown:
             say(
                 "👋 Hi! I'm your QA helper bot. I can:\n"
                 "- Format your messages into structured bug reports\n"
@@ -66,8 +66,7 @@ def handle_mention(event, say, body):
                 "- Help you manage Jira-related settings\n\n"
                 "Type *help* or *info* in a mention to see available commands."
             )
-            mark_channel_welcome_shown(team_id, channel_id)
-        return
+            set_channel_welcome_shown(team_id, channel_id, True)
 
     if len(clean_text) < MIN_TEXT_LENGTH:
         say("Hmm :)")

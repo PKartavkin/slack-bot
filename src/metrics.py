@@ -8,23 +8,32 @@ def init_or_get_org(team_id: str) -> dict:
     """
     org = orgs.find_one({"team_id": team_id})
     if not org:
-        # Create new org with initial metrics and joined_date
+        # Create new org with initial metrics and joined_date (as ISO string)
+        joined_date_str = datetime.utcnow().isoformat() + "Z"
         org = {
             "team_id": team_id,
             "bot_invocations_total": 0,
-            "joined_date": datetime.utcnow(),
+            "joined_date": joined_date_str,
         }
         orgs.insert_one(org)
         return org
 
-    # Backfill joined_date for existing orgs
+    # Backfill joined_date for existing orgs (convert to string if needed)
     if "joined_date" not in org:
-        joined = datetime.utcnow()
+        joined_date_str = datetime.utcnow().isoformat() + "Z"
         orgs.update_one(
             {"team_id": team_id},
-            {"$set": {"joined_date": joined}},
+            {"$set": {"joined_date": joined_date_str}},
         )
-        org["joined_date"] = joined
+        org["joined_date"] = joined_date_str
+    elif isinstance(org.get("joined_date"), datetime):
+        # Convert existing datetime to ISO string
+        joined_date_str = org["joined_date"].isoformat() + "Z"
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {"joined_date": joined_date_str}},
+        )
+        org["joined_date"] = joined_date_str
 
     return org
 
