@@ -6,7 +6,7 @@ from openai import APITimeoutError
 
 from src.db import orgs
 from src.logger import logger
-from src.utils import strip_command
+from src.utils import strip_command, sanitize_slack_id, sanitize_project_name
 
 
 # Initialize OpenAI client lazily / defensively so missing env vars
@@ -249,6 +249,11 @@ def get_settings(team_id: str, channel_id: str | None = None):
     
     Uses atomic MongoDB operations to prevent race conditions.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    if channel_id is not None:
+        channel_id = sanitize_slack_id(channel_id, "channel_id", allow_none=False)
+    
     PROJECT_DEFAULTS = {
         "use_project_context": False,
         "project_context": "",
@@ -329,6 +334,19 @@ Expected:
     if not project_name:
         return PROJECT_DEFAULTS
 
+    # Sanitize project name to prevent MongoDB injection
+    try:
+        project_name = sanitize_project_name(project_name)
+    except ValueError:
+        logger.error(
+            "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
+            team_id,
+            channel_id,
+            project_name,
+        )
+        # Return defaults if project name is invalid
+        return PROJECT_DEFAULTS
+
     # Get project-specific settings
     projects = org.get("projects") or {}
     project_settings = projects.get(project_name, {})
@@ -355,6 +373,10 @@ def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
     If the project does not exist yet, it will be created with default project settings.
     Preserves welcome_shown flag in channel_projects for this channel if it exists.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    channel_id = sanitize_slack_id(channel_id, "channel_id")
+    
     project_name = strip_command(
         text,
         ["use project", "switch project", "select project"],
@@ -366,8 +388,11 @@ def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
             "`use project Mobile app`"
         )
 
-    if len(project_name) > 128:
-        return "Project name is too long. Please use a shorter name (<= 128 characters)."
+    # Sanitize project name to prevent MongoDB injection (dot notation, operators)
+    try:
+        project_name = sanitize_project_name(project_name)
+    except ValueError as e:
+        return f"Invalid project name: {str(e)}"
 
     # Store channel → project binding and preserve welcome_shown flag if it exists
     # channel_projects structure: {channel_id: {"project": project_name, "welcome_shown": bool}}
@@ -398,6 +423,8 @@ def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
 
 
 def list_projects(team_id: str) -> str:
+    # Sanitize input to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
     org = orgs.find_one({"team_id": team_id}, {"projects": 1})
     projects = sorted((org or {}).get("projects", {}).keys())
 
@@ -418,6 +445,9 @@ def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
     Get the project name bound to a channel from channel_projects.
     Returns None if channel is not bound to a project.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    channel_id = sanitize_slack_id(channel_id, "channel_id")
     org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
     if not org:
         return None
@@ -438,6 +468,9 @@ def get_channel_welcome_shown(team_id: str, channel_id: str) -> bool:
     Get whether the welcome message has been shown for a channel from channel_projects.
     Returns False if not set or channel not found.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    channel_id = sanitize_slack_id(channel_id, "channel_id")
     org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
     if not org:
         return False
@@ -454,6 +487,9 @@ def set_channel_welcome_shown(team_id: str, channel_id: str, value: bool) -> Non
     """
     Set whether the welcome message has been shown for a channel in channel_projects.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    channel_id = sanitize_slack_id(channel_id, "channel_id")
     orgs.update_one(
         {"team_id": team_id},
         {"$set": {f"channel_projects.{channel_id}.welcome_shown": value}},
@@ -468,6 +504,10 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     """
     if not channel_id:
         return "Channel status is only available when called from a channel."
+    
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    channel_id = sanitize_slack_id(channel_id, "channel_id")
     
     project_name = get_channel_project_name(team_id, channel_id)
     settings = get_settings(team_id, channel_id=channel_id)
@@ -498,6 +538,15 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
     If channel_id is None or channel is not bound to a project, create/use a default project
     for project-specific fields.
     """
+    # Sanitize inputs to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    if channel_id is not None:
+        channel_id = sanitize_slack_id(channel_id, "channel_id", allow_none=False)
+    
+    # Validate field name to prevent injection
+    if not isinstance(field, str) or not field.strip():
+        raise ValueError("Field name must be a non-empty string")
+    
     # Fields that belong in projects
     PROJECT_FIELDS = {
         "bug_report_template",
@@ -524,6 +573,19 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
                 project_name = channel_info
             
             if project_name:
+                # Sanitize project name to prevent MongoDB injection
+                try:
+                    project_name = sanitize_project_name(project_name)
+                except ValueError:
+                    logger.error(
+                        "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
+                        team_id,
+                        channel_id,
+                        project_name,
+                    )
+                    # Skip update if project name is invalid
+                    return
+                
                 # Update the bound project
                 orgs.update_one(
                     {"team_id": team_id},
@@ -554,6 +616,19 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
             project_name = channel_info
             
         if project_name:
+            # Sanitize project name to prevent MongoDB injection
+            try:
+                project_name = sanitize_project_name(project_name)
+            except ValueError:
+                logger.error(
+                    "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
+                    team_id,
+                    channel_id,
+                    project_name,
+                )
+                # Skip update if project name is invalid
+                return
+            
             orgs.update_one(
                 {"team_id": team_id},
                 {"$set": {f"projects.{project_name}.{field}": value}},
