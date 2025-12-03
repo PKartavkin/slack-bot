@@ -50,5 +50,9 @@ def validate_environment_variables() -> None:
         else:
             logger.debug(f"Environment variable set: {var_name}")
     
+    # Log rate limiting configuration
+    rate_limit_max = int(os.getenv("RATE_LIMIT_OPENAI_MAX", "100"))
+    logger.info(f"OpenAI rate limiting: {rate_limit_max} requests per organization per day")
+    
     logger.info("Environment variable validation completed successfully")
 

@@ -12,6 +12,7 @@ from src.utils import (
     sanitize_project_name,
     get_mongodb_error_message,
 )
+from src.rate_limiter import openai_rate_limiter
 
 # Initialize OpenAI client - assumes OPENAI_API_KEY is validated at startup
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -28,6 +29,11 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
             "Bug report generation is temporarily unavailable: "
             "OpenAI API key is not configured."
         )
+
+    # Rate limit OpenAI API calls - 100 requests per organization per day
+    is_allowed, error_msg = openai_rate_limiter.is_allowed(team_id)
+    if not is_allowed:
+        return error_msg
 
     MAX_INPUT_LENGTH = 4000
     if len(text) > MAX_INPUT_LENGTH:
