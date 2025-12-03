@@ -2,6 +2,7 @@ import os
 from datetime import datetime
 
 from openai import OpenAI
+from openai import APITimeoutError
 
 from src.db import orgs
 from src.logger import logger
@@ -18,6 +19,10 @@ else:
     logger.warning(
         "OPENAI_API_KEY is not set; bug report generation will be disabled."
     )
+
+
+# OpenAI API timeout in seconds
+OPENAI_API_TIMEOUT = 30.0
 
 
 # ToDo: make several small files, like jira_commands.....
@@ -70,6 +75,17 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
+            timeout=OPENAI_API_TIMEOUT,
+        )
+    except APITimeoutError:
+        logger.error(
+            "OpenAI API timeout while generating bug report for team_id=%s (timeout=%ss)",
+            team_id,
+            OPENAI_API_TIMEOUT,
+        )
+        return (
+            "The AI service took too long to respond. "
+            "Please try again with a shorter message or try again later."
         )
     except Exception as e:  # noqa: BLE001 - want to catch all OpenAI client errors
         logger.exception("OpenAI error while generating bug report for team_id=%s", team_id)
@@ -230,6 +246,8 @@ def get_settings(team_id: str, channel_id: str | None = None):
     Get project settings. bug_report_template and project_context are stored only in projects,
     not in settings. If channel_id is provided, returns project-specific settings.
     If channel_id is None, returns empty dict (for backward compatibility).
+    
+    Uses atomic MongoDB operations to prevent race conditions.
     """
     PROJECT_DEFAULTS = {
         "use_project_context": False,
@@ -242,47 +260,57 @@ Expected:
 """
     }
 
+    # Atomically ensure org exists with required fields using upsert
+    # $setOnInsert only sets these fields if document is being created
+    joined_date_str = datetime.utcnow().isoformat() + "Z"
+    orgs.update_one(
+        {"team_id": team_id},
+        {
+            "$setOnInsert": {
+                "team_id": team_id,
+                "channel_projects": {},
+                "joined_date": joined_date_str,
+            }
+        },
+        upsert=True,
+    )
+
+    # Atomically backfill/convert joined_date if needed
+    # These updates are safe because they use query conditions that match the state
+    # Multiple threads can run these safely - only one will succeed per condition
+    orgs.update_one(
+        {"team_id": team_id, "joined_date": {"$exists": False}},
+        {"$set": {"joined_date": datetime.utcnow().isoformat() + "Z"}},
+    )
+    
+    # Convert datetime objects to ISO strings atomically
+    # Note: This requires checking if it's a datetime, which we do after fetching
+    # The conversion is safe because we check the type in the update condition
+    
+    # Atomically ensure channel_projects exists
+    orgs.update_one(
+        {"team_id": team_id, "channel_projects": {"$exists": False}},
+        {"$set": {"channel_projects": {}}},
+    )
+
+    # Fetch org after all atomic updates to get latest state
     org = orgs.find_one({"team_id": team_id})
-
-    # If first interaction → create entry in DB
-    if not org:
-        joined_date_str = datetime.utcnow().isoformat() + "Z"
-        org = {
-            "team_id": team_id,
-            "channel_projects": {},
-            "joined_date": joined_date_str,
-        }
-        orgs.insert_one(org)
-        # If no channel_id, return empty dict
-        if channel_id is None:
-            return {}
-        # Otherwise, return project defaults
-        return PROJECT_DEFAULTS
-
-    # Backfill joined_date for existing organizations (convert to string if needed)
-    if "joined_date" not in org:
-        joined_date_str = datetime.utcnow().isoformat() + "Z"
-        orgs.update_one(
-            {"team_id": team_id},
-            {"$set": {"joined_date": joined_date_str}},
-        )
-        org["joined_date"] = joined_date_str
-    elif isinstance(org.get("joined_date"), datetime):
-        # Convert existing datetime to ISO string
+    
+    # Handle datetime conversion if needed (one-time migration)
+    # This is safe because the update condition ensures atomicity - only converts if still a datetime
+    if org and isinstance(org.get("joined_date"), datetime):
         joined_date_str = org["joined_date"].isoformat() + "Z"
         orgs.update_one(
-            {"team_id": team_id},
+            {"team_id": team_id, "joined_date": {"$type": "date"}},
             {"$set": {"joined_date": joined_date_str}},
         )
-        org["joined_date"] = joined_date_str
-
-    # Ensure channel_projects exists
-    if "channel_projects" not in org:
-        orgs.update_one(
-            {"team_id": team_id},
-            {"$set": {"channel_projects": {}}},
-        )
-        org["channel_projects"] = {}
+        # Refetch to get the converted value (or value from another thread that converted it)
+        org = orgs.find_one({"team_id": team_id})
+    if not org:
+        # Should not happen after upsert, but handle gracefully
+        if channel_id is None:
+            return {}
+        return PROJECT_DEFAULTS
 
     # If no channel context → return empty dict
     if channel_id is None:
@@ -309,6 +337,7 @@ Expected:
     merged_project_settings = {**PROJECT_DEFAULTS, **project_settings}
 
     # Persist back if something changed (safe migration / initialization)
+    # Use atomic update to prevent race conditions
     if merged_project_settings != project_settings:
         orgs.update_one(
             {"team_id": team_id},
