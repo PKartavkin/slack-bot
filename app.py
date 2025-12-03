@@ -19,6 +19,7 @@ from src.commands import (
     set_jira_url,
     set_jira_bug_query,
     show_jira_bug_query,
+    set_jira_email,
     get_settings,
     get_channel_welcome_shown,
     set_channel_welcome_shown,
@@ -206,6 +207,11 @@ def handle_mention(event, say, body):
     # Show Jira Bug Query
     if contains(text, ["show jira query", "show bug query", "jira query"]):
         say(show_jira_bug_query(team_id, channel_id=channel_id))
+        return
+
+    # Set Jira Email
+    if contains(text, ["set jira email", "update jira email"]):
+        say(set_jira_email(text, team_id, channel_id=channel_id))
         return
 
     # Default fallback

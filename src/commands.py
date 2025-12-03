@@ -192,6 +192,28 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
     return "Jira bug query has been updated."
 
 
+def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
+    email = strip_command(text, ["set jira email", "update jira email"]).strip()
+
+    if not email:
+        return "Please provide a Jira email address."
+
+    # Basic email validation
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return "Please provide a valid email address."
+
+    MAX_EMAIL_LENGTH = 256
+    if len(email) > MAX_EMAIL_LENGTH:
+        return (
+            f"Jira email is too long. "
+            f"Please provide an email shorter than {MAX_EMAIL_LENGTH} characters."
+        )
+
+    _update_settings_field(team_id, channel_id, "jira_email", email)
+
+    return "Jira email has been updated."
+
+
 def show_jira_bug_query(team_id: str, channel_id: str | None = None):
     # Reuse get_settings so project-specific settings are applied if channel/project is set.
     settings = get_settings(team_id, channel_id=channel_id)
@@ -425,6 +447,7 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     use_project_context = settings.get("use_project_context", False)
     jira_url = settings.get("jira_url", "").strip()
     jira_token = settings.get("jira_token", "").strip()
+    jira_email = settings.get("jira_email", "").strip()
     
     lines = []
     lines.append(f"*Project name:* {project_name if project_name else 'N/A'}")
@@ -432,6 +455,7 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     lines.append(f"*Use project context:* {use_project_context}")
     lines.append(f"*Jira URL:* {jira_url if jira_url else 'N/A'}")
     lines.append(f"*Jira token:* {'set' if jira_token else 'not set'}")
+    lines.append(f"*Jira email:* {jira_email if jira_email else 'N/A'}")
     
     return "\n".join(lines)
 
@@ -453,6 +477,7 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
         "jira_token",
         "jira_url",
         "jira_bug_query",
+        "jira_email",
     }
     
     org = orgs.find_one({"team_id": team_id}) or {}
