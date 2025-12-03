@@ -7,6 +7,7 @@ from slack_bolt.adapter.fastapi import SlackRequestHandler
 from starlette.concurrency import run_in_threadpool
 
 from src.logger import logger
+from src.config import validate_environment_variables
 from src.commands import (
     generate_bug_report,
     get_help,
@@ -29,6 +30,9 @@ from src.commands import (
 )
 from src.metrics import increment_bot_invocations
 from src.utils import contains, strip_command, strip_leading_mention
+
+# Validate environment variables at startup
+validate_environment_variables()
 
 # Slack app setup
 slack_app = App(

@@ -6,20 +6,16 @@ from openai import APITimeoutError
 
 from src.db import orgs
 from src.logger import logger
-from src.utils import strip_command, sanitize_slack_id, sanitize_project_name
+from src.utils import (
+    strip_command,
+    sanitize_slack_id,
+    sanitize_project_name,
+    get_mongodb_error_message,
+)
 
-
-# Initialize OpenAI client lazily / defensively so missing env vars
-# do not break module import (which would cause ImportError in app.py).
+# Initialize OpenAI client - assumes OPENAI_API_KEY is validated at startup
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if OPENAI_API_KEY:
-    client = OpenAI(api_key=OPENAI_API_KEY)
-else:
-    client = None
-    logger.warning(
-        "OPENAI_API_KEY is not set; bug report generation will be disabled."
-    )
-
+client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # OpenAI API timeout in seconds
 OPENAI_API_TIMEOUT = 30.0
@@ -28,10 +24,9 @@ OPENAI_API_TIMEOUT = 30.0
 # ToDo: make several small files, like jira_commands.....
 def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) -> str:
     if client is None:
-        logger.error("OPENAI_API_KEY not configured; cannot generate bug report.")
         return (
             "Bug report generation is temporarily unavailable: "
-            "missing OpenAI configuration."
+            "OpenAI API key is not configured."
         )
 
     MAX_INPUT_LENGTH = 4000
@@ -45,7 +40,10 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
         )
 
     logger.debug("Creating formatting")
-    settings = get_settings(team_id, channel_id=channel_id)
+    try:
+        settings = get_settings(team_id, channel_id=channel_id)
+    except Exception as e:
+        return get_mongodb_error_message(e, "generate_bug_report")
     context_block = (
         settings["project_context"]
         if settings["use_project_context"] and settings["project_context"].strip()
@@ -107,34 +105,49 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
 
 def show_bug_report_template(team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Show bug report template")
-    settings = get_settings(team_id, channel_id=channel_id)
-    return settings["bug_report_template"]
+    try:
+        settings = get_settings(team_id, channel_id=channel_id)
+        return settings["bug_report_template"]
+    except Exception as e:
+        return get_mongodb_error_message(e, "show_bug_report_template")
 
 
 def edit_bug_report_template(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Editing bug report template")
-    _update_settings_field(team_id, channel_id, "bug_report_template", text)
-    return "Bug report template updated"
+    try:
+        _update_settings_field(team_id, channel_id, "bug_report_template", text)
+        return "Bug report template updated"
+    except Exception as e:
+        return get_mongodb_error_message(e, "edit_bug_report_template")
 
 
 def show_project_overview(team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Show project overview")
-    settings = get_settings(team_id, channel_id=channel_id)
-    if not settings["project_context"].strip():
-        return "Project documentation is empty. Use *update docs* to add it."
-    return settings["project_context"]
+    try:
+        settings = get_settings(team_id, channel_id=channel_id)
+        if not settings["project_context"].strip():
+            return "Project documentation is empty. Use *update docs* to add it."
+        return settings["project_context"]
+    except Exception as e:
+        return get_mongodb_error_message(e, "show_project_overview")
 
 
 def update_project_overview(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Updating project overview")
-    _update_settings_field(team_id, channel_id, "project_context", text)
-    return "Project overview updated."
+    try:
+        _update_settings_field(team_id, channel_id, "project_context", text)
+        return "Project overview updated."
+    except Exception as e:
+        return get_mongodb_error_message(e, "update_project_overview")
 
 
 def set_use_documentation(flag: bool, team_id: str, channel_id: str | None = None) -> str:
     logger.debug(f"Use documentation flag: {flag}")
-    _update_settings_field(team_id, channel_id, "use_project_context", flag)
-    return f"Use documentation: {flag}"
+    try:
+        _update_settings_field(team_id, channel_id, "use_project_context", flag)
+        return f"Use documentation: {flag}"
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_use_documentation")
 
 
 def get_help() -> str:
@@ -164,9 +177,11 @@ def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
             f"Please ensure it's correct and shorter than {MAX_TOKEN_LENGTH} characters."
         )
 
-    _update_settings_field(team_id, channel_id, "jira_token", token)
-
-    return "Jira token has been updated."
+    try:
+        _update_settings_field(team_id, channel_id, "jira_token", token)
+        return "Jira token has been updated."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_token")
 
 
 def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
@@ -182,9 +197,11 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
             f"Please provide a URL shorter than {MAX_URL_LENGTH} characters."
         )
 
-    _update_settings_field(team_id, channel_id, "jira_url", url)
-
-    return "Jira URL has been updated."
+    try:
+        _update_settings_field(team_id, channel_id, "jira_url", url)
+        return "Jira URL has been updated."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_url")
 
 
 def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
@@ -203,9 +220,11 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
             f"Please shorten it to under {MAX_QUERY_LENGTH} characters."
         )
 
-    _update_settings_field(team_id, channel_id, "jira_bug_query", query)
-
-    return "Jira bug query has been updated."
+    try:
+        _update_settings_field(team_id, channel_id, "jira_bug_query", query)
+        return "Jira bug query has been updated."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_bug_query")
 
 
 def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
@@ -225,20 +244,25 @@ def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
             f"Please provide an email shorter than {MAX_EMAIL_LENGTH} characters."
         )
 
-    _update_settings_field(team_id, channel_id, "jira_email", email)
-
-    return "Jira email has been updated."
+    try:
+        _update_settings_field(team_id, channel_id, "jira_email", email)
+        return "Jira email has been updated."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_email")
 
 
 def show_jira_bug_query(team_id: str, channel_id: str | None = None):
     # Reuse get_settings so project-specific settings are applied if channel/project is set.
-    settings = get_settings(team_id, channel_id=channel_id)
-    query = settings.get("jira_bug_query")
+    try:
+        settings = get_settings(team_id, channel_id=channel_id)
+        query = settings.get("jira_bug_query")
 
-    if not query:
-        return "Jira bug query is not set."
+        if not query:
+            return "Jira bug query is not set."
 
-    return f"Current Jira bug query:\n```\n{query}\n```"
+        return f"Current Jira bug query:\n```\n{query}\n```"
+    except Exception as e:
+        return get_mongodb_error_message(e, "show_jira_bug_query")
 
 
 def get_settings(team_id: str, channel_id: str | None = None):
@@ -265,52 +289,56 @@ Expected:
 """
     }
 
-    # Atomically ensure org exists with required fields using upsert
-    # $setOnInsert only sets these fields if document is being created
-    joined_date_str = datetime.utcnow().isoformat() + "Z"
-    orgs.update_one(
-        {"team_id": team_id},
-        {
-            "$setOnInsert": {
-                "team_id": team_id,
-                "channel_projects": {},
-                "joined_date": joined_date_str,
-            }
-        },
-        upsert=True,
-    )
-
-    # Atomically backfill/convert joined_date if needed
-    # These updates are safe because they use query conditions that match the state
-    # Multiple threads can run these safely - only one will succeed per condition
-    orgs.update_one(
-        {"team_id": team_id, "joined_date": {"$exists": False}},
-        {"$set": {"joined_date": datetime.utcnow().isoformat() + "Z"}},
-    )
-    
-    # Convert datetime objects to ISO strings atomically
-    # Note: This requires checking if it's a datetime, which we do after fetching
-    # The conversion is safe because we check the type in the update condition
-    
-    # Atomically ensure channel_projects exists
-    orgs.update_one(
-        {"team_id": team_id, "channel_projects": {"$exists": False}},
-        {"$set": {"channel_projects": {}}},
-    )
-
-    # Fetch org after all atomic updates to get latest state
-    org = orgs.find_one({"team_id": team_id})
-    
-    # Handle datetime conversion if needed (one-time migration)
-    # This is safe because the update condition ensures atomicity - only converts if still a datetime
-    if org and isinstance(org.get("joined_date"), datetime):
-        joined_date_str = org["joined_date"].isoformat() + "Z"
+    try:
+        # Atomically ensure org exists with required fields using upsert
+        # $setOnInsert only sets these fields if document is being created
+        joined_date_str = datetime.utcnow().isoformat() + "Z"
         orgs.update_one(
-            {"team_id": team_id, "joined_date": {"$type": "date"}},
-            {"$set": {"joined_date": joined_date_str}},
+            {"team_id": team_id},
+            {
+                "$setOnInsert": {
+                    "team_id": team_id,
+                    "channel_projects": {},
+                    "joined_date": joined_date_str,
+                }
+            },
+            upsert=True,
         )
-        # Refetch to get the converted value (or value from another thread that converted it)
+
+        # Atomically backfill/convert joined_date if needed
+        # These updates are safe because they use query conditions that match the state
+        # Multiple threads can run these safely - only one will succeed per condition
+        orgs.update_one(
+            {"team_id": team_id, "joined_date": {"$exists": False}},
+            {"$set": {"joined_date": datetime.utcnow().isoformat() + "Z"}},
+        )
+        
+        # Convert datetime objects to ISO strings atomically
+        # Note: This requires checking if it's a datetime, which we do after fetching
+        # The conversion is safe because we check the type in the update condition
+        
+        # Atomically ensure channel_projects exists
+        orgs.update_one(
+            {"team_id": team_id, "channel_projects": {"$exists": False}},
+            {"$set": {"channel_projects": {}}},
+        )
+
+        # Fetch org after all atomic updates to get latest state
         org = orgs.find_one({"team_id": team_id})
+        
+        # Handle datetime conversion if needed (one-time migration)
+        # This is safe because the update condition ensures atomicity - only converts if still a datetime
+        if org and isinstance(org.get("joined_date"), datetime):
+            joined_date_str = org["joined_date"].isoformat() + "Z"
+            orgs.update_one(
+                {"team_id": team_id, "joined_date": {"$type": "date"}},
+                {"$set": {"joined_date": joined_date_str}},
+            )
+            # Refetch to get the converted value (or value from another thread that converted it)
+            org = orgs.find_one({"team_id": team_id})
+    except Exception as e:
+        # Let exception propagate - calling functions will handle it
+        raise
     if not org:
         # Should not happen after upsert, but handle gracefully
         if channel_id is None:
@@ -357,10 +385,14 @@ Expected:
     # Persist back if something changed (safe migration / initialization)
     # Use atomic update to prevent race conditions
     if merged_project_settings != project_settings:
-        orgs.update_one(
-            {"team_id": team_id},
-            {"$set": {f"projects.{project_name}": merged_project_settings}},
-        )
+        try:
+            orgs.update_one(
+                {"team_id": team_id},
+                {"$set": {f"projects.{project_name}": merged_project_settings}},
+            )
+        except Exception as e:
+            # Let exception propagate - calling functions will handle it
+            raise
 
     return merged_project_settings
 
@@ -397,47 +429,53 @@ def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
     # Store channel → project binding and preserve welcome_shown flag if it exists
     # channel_projects structure: {channel_id: {"project": project_name, "welcome_shown": bool}}
     # Preserve existing welcome_shown value if it exists, don't set it if it doesn't exist
-    org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1}) or {}
-    channel_projects = org.get("channel_projects") or {}
-    channel_info = channel_projects.get(channel_id)
-    
-    # Build the update object - preserve welcome_shown if it exists
-    update_obj = {"project": project_name}
-    if isinstance(channel_info, dict) and "welcome_shown" in channel_info:
-        update_obj["welcome_shown"] = channel_info["welcome_shown"]
-    
-    orgs.update_one(
-        {"team_id": team_id},
-        {
-            "$set": {
-                f"channel_projects.{channel_id}": update_obj
-            }
-        },
-        upsert=True,
-    )
+    try:
+        org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1}) or {}
+        channel_projects = org.get("channel_projects") or {}
+        channel_info = channel_projects.get(channel_id)
+        
+        # Build the update object - preserve welcome_shown if it exists
+        update_obj = {"project": project_name}
+        if isinstance(channel_info, dict) and "welcome_shown" in channel_info:
+            update_obj["welcome_shown"] = channel_info["welcome_shown"]
+        
+        orgs.update_one(
+            {"team_id": team_id},
+            {
+                "$set": {
+                    f"channel_projects.{channel_id}": update_obj
+                }
+            },
+            upsert=True,
+        )
 
-    # Ensure project settings exist (this will also apply defaults if needed)
-    get_settings(team_id, channel_id=channel_id)
+        # Ensure project settings exist (this will also apply defaults if needed)
+        get_settings(team_id, channel_id=channel_id)
 
-    return f"Channel is now using project configuration *{project_name}*."
+        return f"Channel is now using project configuration *{project_name}*."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_channel_project")
 
 
 def list_projects(team_id: str) -> str:
     # Sanitize input to prevent MongoDB injection
     team_id = sanitize_slack_id(team_id, "team_id")
-    org = orgs.find_one({"team_id": team_id}, {"projects": 1})
-    projects = sorted((org or {}).get("projects", {}).keys())
+    try:
+        org = orgs.find_one({"team_id": team_id}, {"projects": 1})
+        projects = sorted((org or {}).get("projects", {}).keys())
 
-    if not projects:
-        return (
-            "No project configurations found yet.\n"
-            "You can create one by mentioning me and saying, for example:\n"
-            "`use project Mobile app`"
-        )
+        if not projects:
+            return (
+                "No project configurations found yet.\n"
+                "You can create one by mentioning me and saying, for example:\n"
+                "`use project Mobile app`"
+            )
 
-    lines = ["Available project configurations:"]
-    lines.extend(f"- {name}" for name in projects)
-    return "\n".join(lines)
+        lines = ["Available project configurations:"]
+        lines.extend(f"- {name}" for name in projects)
+        return "\n".join(lines)
+    except Exception as e:
+        return get_mongodb_error_message(e, "list_projects")
 
 
 def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
@@ -448,19 +486,23 @@ def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
     # Sanitize inputs to prevent MongoDB injection
     team_id = sanitize_slack_id(team_id, "team_id")
     channel_id = sanitize_slack_id(channel_id, "channel_id")
-    org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
-    if not org:
+    try:
+        org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
+        if not org:
+            return None
+        
+        channel_projects = org.get("channel_projects") or {}
+        channel_info = channel_projects.get(channel_id)
+        
+        if isinstance(channel_info, dict):
+            return channel_info.get("project")
+        elif channel_info:
+            # Handle old format where channel_id directly maps to project name
+            return channel_info
         return None
-    
-    channel_projects = org.get("channel_projects") or {}
-    channel_info = channel_projects.get(channel_id)
-    
-    if isinstance(channel_info, dict):
-        return channel_info.get("project")
-    elif channel_info:
-        # Handle old format where channel_id directly maps to project name
-        return channel_info
-    return None
+    except Exception as e:
+        logger.exception("Error getting channel project name: %s", e)
+        return None  # Return None on error to allow graceful degradation
 
 
 def get_channel_welcome_shown(team_id: str, channel_id: str) -> bool:
@@ -471,16 +513,20 @@ def get_channel_welcome_shown(team_id: str, channel_id: str) -> bool:
     # Sanitize inputs to prevent MongoDB injection
     team_id = sanitize_slack_id(team_id, "team_id")
     channel_id = sanitize_slack_id(channel_id, "channel_id")
-    org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
-    if not org:
+    try:
+        org = orgs.find_one({"team_id": team_id}, {"channel_projects": 1})
+        if not org:
+            return False
+        
+        channel_projects = org.get("channel_projects") or {}
+        channel_info = channel_projects.get(channel_id)
+        
+        if isinstance(channel_info, dict):
+            return channel_info.get("welcome_shown", False)
         return False
-    
-    channel_projects = org.get("channel_projects") or {}
-    channel_info = channel_projects.get(channel_id)
-    
-    if isinstance(channel_info, dict):
-        return channel_info.get("welcome_shown", False)
-    return False
+    except Exception as e:
+        logger.exception("Error getting channel welcome shown: %s", e)
+        return False  # Return False on error to allow graceful degradation
 
 
 def set_channel_welcome_shown(team_id: str, channel_id: str, value: bool) -> None:
@@ -490,11 +536,15 @@ def set_channel_welcome_shown(team_id: str, channel_id: str, value: bool) -> Non
     # Sanitize inputs to prevent MongoDB injection
     team_id = sanitize_slack_id(team_id, "team_id")
     channel_id = sanitize_slack_id(channel_id, "channel_id")
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {f"channel_projects.{channel_id}.welcome_shown": value}},
-        upsert=True,
-    )
+    try:
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$set": {f"channel_projects.{channel_id}.welcome_shown": value}},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.exception("Error setting channel welcome shown: %s", e)
+        # Don't raise - this is a non-critical operation
 
 
 def show_channel_status(team_id: str, channel_id: str | None) -> str:
@@ -509,8 +559,11 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     team_id = sanitize_slack_id(team_id, "team_id")
     channel_id = sanitize_slack_id(channel_id, "channel_id")
     
-    project_name = get_channel_project_name(team_id, channel_id)
-    settings = get_settings(team_id, channel_id=channel_id)
+    try:
+        project_name = get_channel_project_name(team_id, channel_id)
+        settings = get_settings(team_id, channel_id=channel_id)
+    except Exception as e:
+        return get_mongodb_error_message(e, "show_channel_status")
     
     project_context = settings.get("project_context", "").strip()
     use_project_context = settings.get("use_project_context", False)
@@ -558,10 +611,54 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
         "jira_email",
     }
     
-    org = orgs.find_one({"team_id": team_id}) or {}
-    
-    # For project-specific fields, always update projects
-    if field in PROJECT_FIELDS:
+    try:
+        org = orgs.find_one({"team_id": team_id}) or {}
+        
+        # For project-specific fields, always update projects
+        if field in PROJECT_FIELDS:
+            if channel_id is not None:
+                channel_projects = org.get("channel_projects") or {}
+                channel_info = channel_projects.get(channel_id)
+                
+                # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name})
+                if isinstance(channel_info, dict):
+                    project_name = channel_info.get("project")
+                else:
+                    project_name = channel_info
+                
+                if project_name:
+                    # Sanitize project name to prevent MongoDB injection
+                    try:
+                        project_name = sanitize_project_name(project_name)
+                    except ValueError:
+                        logger.error(
+                            "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
+                            team_id,
+                            channel_id,
+                            project_name,
+                        )
+                        # Skip update if project name is invalid
+                        return
+                    
+                    # Update the bound project
+                    orgs.update_one(
+                        {"team_id": team_id},
+                        {"$set": {f"projects.{project_name}.{field}": value}},
+                        upsert=True,
+                    )
+                    return
+            
+            # If no channel_id or channel not bound to project, use/create default project
+            # Default project name is "default"
+            default_project = "default"
+            orgs.update_one(
+                {"team_id": team_id},
+                {"$set": {f"projects.{default_project}.{field}": value}},
+                upsert=True,
+            )
+            return
+        
+        # Unknown field - default to project update
         if channel_id is not None:
             channel_projects = org.get("channel_projects") or {}
             channel_info = channel_projects.get(channel_id)
@@ -571,7 +668,7 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
                 project_name = channel_info.get("project")
             else:
                 project_name = channel_info
-            
+                
             if project_name:
                 # Sanitize project name to prevent MongoDB injection
                 try:
@@ -586,7 +683,6 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
                     # Skip update if project name is invalid
                     return
                 
-                # Update the bound project
                 orgs.update_one(
                     {"team_id": team_id},
                     {"$set": {f"projects.{project_name}.{field}": value}},
@@ -594,52 +690,13 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
                 )
                 return
         
-        # If no channel_id or channel not bound to project, use/create default project
-        # Default project name is "default"
+        # Fallback: update in default project
         default_project = "default"
         orgs.update_one(
             {"team_id": team_id},
             {"$set": {f"projects.{default_project}.{field}": value}},
             upsert=True,
         )
-        return
-    
-    # Unknown field - default to project update
-    if channel_id is not None:
-        channel_projects = org.get("channel_projects") or {}
-        channel_info = channel_projects.get(channel_id)
-        
-        # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name})
-        if isinstance(channel_info, dict):
-            project_name = channel_info.get("project")
-        else:
-            project_name = channel_info
-            
-        if project_name:
-            # Sanitize project name to prevent MongoDB injection
-            try:
-                project_name = sanitize_project_name(project_name)
-            except ValueError:
-                logger.error(
-                    "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
-                    team_id,
-                    channel_id,
-                    project_name,
-                )
-                # Skip update if project name is invalid
-                return
-            
-            orgs.update_one(
-                {"team_id": team_id},
-                {"$set": {f"projects.{project_name}.{field}": value}},
-                upsert=True,
-            )
-            return
-    
-    # Fallback: update in default project
-    default_project = "default"
-    orgs.update_one(
-        {"team_id": team_id},
-        {"$set": {f"projects.{default_project}.{field}": value}},
-        upsert=True,
-    )
+    except Exception as e:
+        # Let exception propagate - calling functions will handle it
+        raise

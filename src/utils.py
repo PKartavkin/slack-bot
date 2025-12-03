@@ -154,3 +154,48 @@ def sanitize_project_name(project_name: str) -> str:
         )
     
     return project_name
+
+
+def get_mongodb_error_message(error: Exception, operation_name: str = "operation") -> str:
+    """
+    Convert MongoDB errors to user-friendly messages.
+    
+    Args:
+        error: The exception that occurred
+        operation_name: Name of the operation for logging context
+        
+    Returns:
+        User-friendly error message string
+    """
+    from pymongo.errors import (
+        ConnectionFailure,
+        ServerSelectionTimeoutError,
+        OperationFailure,
+        PyMongoError,
+    )
+    from src.logger import logger
+    
+    logger.exception("MongoDB error in %s: %s", operation_name, str(error))
+    
+    # Provide specific error messages based on error type
+    if isinstance(error, (ConnectionFailure, ServerSelectionTimeoutError)):
+        return (
+            "I'm having trouble connecting to the database. "
+            "Please try again in a moment."
+        )
+    elif isinstance(error, OperationFailure):
+        return (
+            "A database operation failed. "
+            "Please try again or contact support if the issue persists."
+        )
+    elif isinstance(error, PyMongoError):
+        return (
+            "A database error occurred. "
+            "Please try again in a moment."
+        )
+    else:
+        # For non-MongoDB errors that might occur, use generic message
+        return (
+            "An unexpected error occurred while accessing the database. "
+            "Please try again or contact support."
+        )
