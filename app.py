@@ -21,7 +21,6 @@ from src.commands import (
     set_jira_bug_query,
     show_jira_bug_query,
     set_jira_email,
-    set_jira_default,
     set_jira_defaults,
     show_jira_defaults,
     clear_jira_default,
@@ -94,11 +93,11 @@ def handle_mention(event, say, body):
 
 
     # Project configuration selection / discovery
-    if contains(text, ["list projects", "show projects"]):
+    if contains(text, ["list projects"]):
         say(list_projects(team_id))
         return
 
-    if contains(text, ["use project", "switch project", "select project"]):
+    if contains(text, ["use project"]):
         if not channel_id:
             say("I couldn't detect the channel for this request.")
             return
@@ -106,151 +105,114 @@ def handle_mention(event, say, body):
         return
 
     # Show channel status
-    if contains(text, ["channel status", "show status", "status", "channel info"]):
+    if contains(text, ["status"]):
         say(show_channel_status(team_id, channel_id))
         return
 
     # Show bug report template
-    if contains(text, ["show bug report", "bug report template"]):
+    if contains(text, ["show bug template"]):
         say(show_bug_report_template(team_id, channel_id=channel_id))
         return
 
     # Generate bug report
-    if contains(text, ["generate bug", "bug report", "format bug"]):
+    if contains(text, ["create bug report"]):
         # Pass channel_id so project-specific configuration is used if set.
         say(generate_bug_report(text, team_id, channel_id=channel_id))
         return
 
     # Help
-    if contains(text, ["info", "help", "commands"]):
+    if contains(text, ["help"]):
         say(get_help())
         return
 
     # Edit bug report template
-    edit_bug_report_template_keywords = ["edit bug report", "bug report template"]
-    if contains(text, edit_bug_report_template_keywords):
-        payload = strip_command(text, edit_bug_report_template_keywords)
+    if contains(text, ["edit bug template"]):
+        payload = strip_command(text, "edit bug template")
         if len(payload) < MIN_BUG_REPORT_TEMPLATE_LENGTH:
             say(
                 f"Bug report template is too short. "
                 f"Must be at least {MIN_BUG_REPORT_TEMPLATE_LENGTH} characters."
             )
             return
-        say(edit_bug_report_template(payload, team_id, channel_id=channel_id))
+        say(edit_bug_report_template(text, team_id, channel_id=channel_id))
         return
 
     # Show project overview
-    if contains(
-        text,
-        [
-            "show project",
-            "project details",
-            "project info",
-            "about the project",
-            "about project",
-        ],
-    ):
+    if contains(text, ["show project"]):
         say(show_project_overview(team_id, channel_id=channel_id))
         return
 
     # Update project overview
-    update_project_overview_keywords = [
-        "update project",
-        "update docs",
-        "update specs",
-        "update documentation",
-    ]
-    if contains(text, update_project_overview_keywords):
-        payload = strip_command(text, update_project_overview_keywords)
+    if contains(text, ["update docs"]):
+        payload = strip_command(text, "update docs")
         if len(payload) < MIN_PROJECT_OVERVIEW_LENGTH:
             say(
                 f"Project description is too short. "
                 f"Must be at least {MIN_PROJECT_OVERVIEW_LENGTH} characters."
             )
             return
-        say(update_project_overview(payload, team_id, channel_id=channel_id))
+        say(update_project_overview(text, team_id, channel_id=channel_id))
         return
 
     # Use project overview for bug report generation
-    if contains(
-        text,
-        [
-            "use docs",
-            "use documentation",
-            "use project documentation",
-            "enable doces",
-        ],
-    ):
+    if contains(text, ["enable docs"]):
         set_use_documentation(True, team_id, channel_id=channel_id)
         say("Bot will use project documentation")
         return
 
     # Ignore project overview for bug report generation
-    if contains(
-        text,
-        [
-            "ignore docs",
-            "ignore documentation",
-            "ignore project documentation",
-            "disable docs",
-        ],
-    ):
+    if contains(text, ["disable docs"]):
         set_use_documentation(False, team_id, channel_id=channel_id)
         say("Bot won't use project documentation")
         return
 
     # Set Jira Token
-    if contains(text, ["set jira token", "update jira token"]):
+    if contains(text, ["set jira token"]):
         say(set_jira_token(text, team_id, channel_id=channel_id))
         return
 
     # Set Jira URL
-    if contains(text, ["set jira url", "update jira url"]):
+    if contains(text, ["set jira url"]):
         say(set_jira_url(text, team_id, channel_id=channel_id))
         return
 
     # Set Jira Bug Query
-    if contains(text, ["set jira query", "jira bug query", "update jira query"]):
+    if contains(text, ["set jira query"]):
         say(set_jira_bug_query(text, team_id, channel_id=channel_id))
         return
 
     # Show Jira Bug Query
-    if contains(text, ["show jira query", "show bug query", "jira query"]):
+    if contains(text, ["show jira query"]):
         say(show_jira_bug_query(team_id, channel_id=channel_id))
         return
 
     # Set Jira Email
-    if contains(text, ["set jira email", "update jira email"]):
+    if contains(text, ["set jira email"]):
         say(set_jira_email(text, team_id, channel_id=channel_id))
         return
 
-    # Set Jira Default (single field)
-    if contains(text, ["set jira default", "update jira default"]):
-        say(set_jira_default(text, team_id, channel_id=channel_id))
-        return
-
-    # Set Jira Defaults (multiple fields)
-    if contains(text, ["set jira defaults", "update jira defaults"]):
+    # Set Jira Defaults
+    if contains(text, ["set jira defaults"]):
         say(set_jira_defaults(text, team_id, channel_id=channel_id))
         return
 
     # Show Jira Defaults
-    if contains(text, ["show jira defaults", "jira defaults", "list jira defaults"]):
+    if contains(text, ["show jira defaults"]):
         say(show_jira_defaults(team_id, channel_id=channel_id))
         return
 
     # Clear Jira Default
-    if contains(text, ["clear jira default", "remove jira default", "delete jira default"]):
+    if contains(text, ["clear jira default"]):
         say(clear_jira_default(text, team_id, channel_id=channel_id))
         return
 
     # Test Jira Connection
-    if contains(text, ["test jira connection", "test jira", "jira test"]):
+    if contains(text, ["test jira"]):
         say(test_jira_connection(team_id, channel_id=channel_id))
         return
 
     # Get Jira Bugs
-    if contains(text, ["get bugs", "get jira bugs", "list bugs", "show bugs"]):
+    if contains(text, ["get bugs"]):
         say(get_jira_bugs(team_id, channel_id=channel_id))
         return
 

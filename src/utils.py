@@ -4,15 +4,37 @@ import re
 def contains(text: str, keywords: list[str]) -> bool:
     return any(k in text for k in keywords)
 
-def strip_command(text: str, keywords: list[str]) -> str:
-    lowered = text.lower()
-    for k in keywords:
-        if k in lowered:
-            idx = lowered.index(k)
-            # remove the command phrase
-            cleaned = text[:idx] + text[idx + len(k):]
-            return cleaned.strip()
-    return text.strip()
+def strip_command(text: str, command: str) -> str:
+    """
+    Remove the command phrase from text and return the remaining payload.
+    Handles case-insensitive matching and ensures clean extraction.
+    
+    Args:
+        text: The full text (should already have bot mention removed)
+        command: The command phrase to remove (case-insensitive)
+        
+    Returns:
+        The text with the command phrase removed, stripped of whitespace
+    """
+    if not text or not command:
+        return text.strip() if text else ""
+    
+    lowered_text = text.lower()
+    lowered_command = command.lower()
+    
+    # Find the command in the text
+    idx = lowered_text.find(lowered_command)
+    if idx == -1:
+        # Command not found, return original text stripped
+        return text.strip()
+    
+    # Remove the command phrase
+    # Use original text to preserve case in the payload
+    before = text[:idx]
+    after = text[idx + len(command):]
+    cleaned = (before + after).strip()
+    
+    return cleaned
 
 
 def strip_leading_mention(text: str) -> str:

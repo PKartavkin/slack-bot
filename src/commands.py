@@ -123,8 +123,13 @@ def show_bug_report_template(team_id: str, channel_id: str | None = None) -> str
 
 def edit_bug_report_template(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Editing bug report template")
+    payload = strip_command(text, "edit bug template").strip()
+    
+    if not payload:
+        return "Please provide the bug report template content."
+    
     try:
-        _update_settings_field(team_id, channel_id, "bug_report_template", text)
+        _update_settings_field(team_id, channel_id, "bug_report_template", payload)
         return "Bug report template updated"
     except Exception as e:
         return get_mongodb_error_message(e, "edit_bug_report_template")
@@ -143,8 +148,13 @@ def show_project_overview(team_id: str, channel_id: str | None = None) -> str:
 
 def update_project_overview(text: str, team_id: str, channel_id: str | None = None) -> str:
     logger.debug("Updating project overview")
+    payload = strip_command(text, "update docs").strip()
+    
+    if not payload:
+        return "Please provide project documentation content."
+    
     try:
-        _update_settings_field(team_id, channel_id, "project_context", text)
+        _update_settings_field(team_id, channel_id, "project_context", payload)
         return "Project overview updated."
     except Exception as e:
         return get_mongodb_error_message(e, "update_project_overview")
@@ -163,24 +173,49 @@ def get_help() -> str:
     logger.debug("Help")
     return """
     **Available commands:**
-    **create bug report** - formats your input according to the template using knowledge about your project
-    **show bug report** - shows template for bug reports
-    **edit bug report**
-    **about project** - displays information about your project
-    **update docs**
-    **use docs** - bot will used project documentation for bug reports
-    **ignore docs** - bot will ignore docs
-    **set jira default <field> <value>** - set a default value for a Jira field (e.g., `set jira default project PROJ-123`)
-    **set jira defaults field1=value1 field2=value2** - set multiple Jira default fields at once
+    
+    *General:*
+    **help** - show this help message
+    **status** - show current channel status and project configuration
+    
+    *Project Management:*
+    **list projects** - list all available project configurations
+    **use project <name>** - bind channel to a project configuration
+    
+    *Bug Reports:*
+    **create bug report** - format your message into a structured bug report
+    **show bug template** - show the current bug report template
+    **edit bug template** - edit the bug report template
+    
+    *Documentation:*
+    **show project** - display project documentation/overview
+    **update docs** - update project documentation
+    **enable docs** - enable using project docs for bug reports
+    **disable docs** - disable using project docs for bug reports
+    
+    *Jira Configuration:*
+    **set jira token <token>** - set Jira API token
+    **set jira url <url>** - set Jira instance URL
+    **set jira email <email>** - set Jira email address
+    **set jira query <JQL>** - set JQL query for fetching bugs
+    **show jira query** - show current Jira JQL query
+    
+    *Jira Default Fields:*
+    **set jira defaults field=value** - set Jira default field values (supports multiple: field1=value1 field2=value2)
     **show jira defaults** - show all Jira default field values
     **clear jira default <field>** - clear a Jira default field value
-    **test jira connection** - test the Jira connection for the current project
-    **get bugs** - get list of Jira issues according to the JQL query for the current project
+    
+    *Jira Operations:*
+    **test jira** - test Jira connection for current project
+    **get bugs** - get list of Jira issues using the configured JQL query
     """
 
 
 def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
-    token = strip_command(text, ["set jira token", "update jira token"]).strip()
+    token = strip_command(text, "set jira token").strip()
+
+    if not token:
+        return "Please provide a Jira token. Example: `set jira token <your-token>`"
 
     if len(token) < 5:
         return "Jira token looks too short. Please send a valid token."
@@ -200,7 +235,10 @@ def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
-    url = strip_command(text, ["set jira url", "update jira url"]).strip()
+    url = strip_command(text, "set jira url").strip()
+
+    if not url:
+        return "Please provide a Jira URL. Example: `set jira url https://your-instance.atlassian.net`"
 
     if not (url.startswith("http://") or url.startswith("https://")):
         return "Jira URL should start with http:// or https://"
@@ -220,10 +258,10 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
-    query = strip_command(
-        text,
-        ["set jira query", "jira bug query", "update jira query"]
-    ).strip()
+    query = strip_command(text, "set jira query").strip()
+
+    if not query:
+        return "Please provide a JQL query. Example: `set jira query project = PROJ AND status != Done`"
 
     if len(query) < 5:
         return "Jira query looks too short. Please provide a valid JQL query."
@@ -243,10 +281,10 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
-    email = strip_command(text, ["set jira email", "update jira email"]).strip()
+    email = strip_command(text, "set jira email").strip()
 
     if not email:
-        return "Please provide a Jira email address."
+        return "Please provide a Jira email address. Example: `set jira email user@example.com`"
 
     # Basic email validation
     if "@" not in email or "." not in email.split("@")[-1]:
@@ -280,82 +318,20 @@ def show_jira_bug_query(team_id: str, channel_id: str | None = None):
         return get_mongodb_error_message(e, "show_jira_bug_query")
 
 
-def set_jira_default(text: str, team_id: str, channel_id: str | None = None) -> str:
-    """
-    Set a single Jira default field value.
-    Syntax: set jira default <field> <value>
-    Example: set jira default project PROJ-123
-    """
-    # Strip command keywords
-    payload = strip_command(
-        text,
-        ["set jira default", "update jira default"]
-    ).strip()
-    
-    if not payload:
-        return (
-            "Please provide a field name and value.\n"
-            "Example: `set jira default project PROJ-123`\n"
-            "Or use `set jira defaults` to set multiple fields at once."
-        )
-    
-    # Parse field and value (split on first space)
-    parts = payload.split(None, 1)
-    if len(parts) < 2:
-        return (
-            "Please provide both a field name and value.\n"
-            "Example: `set jira default project PROJ-123`"
-        )
-    
-    field_name = parts[0].strip()
-    field_value = parts[1].strip()
-    
-    if not field_name:
-        return "Field name cannot be empty."
-    
-    if not field_value:
-        return "Field value cannot be empty."
-    
-    MAX_FIELD_NAME_LENGTH = 64
-    if len(field_name) > MAX_FIELD_NAME_LENGTH:
-        return f"Field name is too long (max {MAX_FIELD_NAME_LENGTH} characters)."
-    
-    MAX_FIELD_VALUE_LENGTH = 512
-    if len(field_value) > MAX_FIELD_VALUE_LENGTH:
-        return f"Field value is too long (max {MAX_FIELD_VALUE_LENGTH} characters)."
-    
-    try:
-        # Get current defaults
-        settings = get_settings(team_id, channel_id=channel_id)
-        defaults = settings.get("jira_defaults", {})
-        
-        # Update the specific field
-        defaults[field_name] = field_value
-        
-        # Save back to settings
-        _update_settings_field(team_id, channel_id, "jira_defaults", defaults)
-        
-        return f"Jira default field *{field_name}* set to *{field_value}*."
-    except Exception as e:
-        return get_mongodb_error_message(e, "set_jira_default")
-
-
 def set_jira_defaults(text: str, team_id: str, channel_id: str | None = None) -> str:
     """
-    Set multiple Jira default field values at once.
-    Syntax: set jira defaults field1=value1 field2=value2 ...
-    Example: set jira defaults project=PROJ-123 type=Bug priority=High
+    Set Jira default field values.
+    Supports both single and multiple fields:
+    - Single: set jira defaults project=PROJ-123
+    - Multiple: set jira defaults project=PROJ-123 type=Bug priority=High
     """
-    # Strip command keywords
-    payload = strip_command(
-        text,
-        ["set jira defaults", "update jira defaults"]
-    ).strip()
+    payload = strip_command(text, "set jira defaults").strip()
     
     if not payload:
         return (
             "Please provide field=value pairs.\n"
-            "Example: `set jira defaults project=PROJ-123 type=Bug priority=High`"
+            "Example: `set jira defaults project=PROJ-123 type=Bug priority=High`\n"
+            "For a single field: `set jira defaults project=PROJ-123`"
         )
     
     # Parse field=value pairs
@@ -424,8 +400,8 @@ def show_jira_defaults(team_id: str, channel_id: str | None = None) -> str:
         if not defaults:
             return (
                 "No Jira default fields are set.\n"
-                "Use `set jira default <field> <value>` to set a single field,\n"
-                "or `set jira defaults field1=value1 field2=value2` to set multiple fields."
+                "Use `set jira defaults field=value` to set fields.\n"
+                "Example: `set jira defaults project=PROJ-123 type=Bug`"
             )
         
         lines = ["*Jira default fields:*"]
@@ -443,11 +419,7 @@ def clear_jira_default(text: str, team_id: str, channel_id: str | None = None) -
     Syntax: clear jira default <field>
     Example: clear jira default project
     """
-    # Strip command keywords
-    field_name = strip_command(
-        text,
-        ["clear jira default", "remove jira default", "delete jira default"]
-    ).strip()
+    field_name = strip_command(text, "clear jira default").strip()
     
     if not field_name:
         return (
@@ -780,10 +752,7 @@ def set_channel_project(text: str, team_id: str, channel_id: str) -> str:
     team_id = sanitize_slack_id(team_id, "team_id")
     channel_id = sanitize_slack_id(channel_id, "channel_id")
     
-    project_name = strip_command(
-        text,
-        ["use project", "switch project", "select project"],
-    ).strip()
+    project_name = strip_command(text, "use project").strip()
 
     if not project_name:
         return (
