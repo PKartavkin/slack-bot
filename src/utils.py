@@ -19,8 +19,9 @@ def strip_command(text: str, command: str) -> str:
     if not text or not command:
         return text.strip() if text else ""
     
-    # Normalize both to lowercase for finding, but preserve original for extraction
-    lowered_text = text.lower().strip()
+    # Normalize both to lowercase for finding, but DON'T strip text yet
+    # We need to preserve the original positions
+    lowered_text = text.lower()
     lowered_command = command.lower().strip()
     
     # Find the command in the text (case-insensitive)

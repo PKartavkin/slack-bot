@@ -281,7 +281,7 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
         return "Please provide a Jira URL. Example: `set jira url https://your-instance.atlassian.net`"
 
     if not (url.startswith("http://") or url.startswith("https://")):
-        return "Jira URL should start with http:// or https://"
+        return f"Jira URL should start with http:// or https://. Got: {repr(url)}"
 
     MAX_URL_LENGTH = 2048
     if len(url) > MAX_URL_LENGTH:
