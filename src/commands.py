@@ -1,4 +1,5 @@
 import os
+import unicodedata
 from datetime import datetime
 
 from jira import JIRA
@@ -275,13 +276,38 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
     if error_msg:
         return error_msg
     
-    url = strip_command(text, "set jira url").strip()
+    url = strip_command(text, "set jira url")
+    
+    # Remove Slack link formatting if present (e.g., <https://...|text>)
+    if url.startswith('<') and url.endswith('>'):
+        # Extract URL from Slack link format
+        if '|' in url:
+            url = url[1:url.index('|')]
+        else:
+            url = url[1:-1]
+    
+    # Clean the URL: normalize Unicode and strip whitespace
+    url = unicodedata.normalize('NFKC', url)
+    # Remove zero-width and other problematic invisible characters
+    url = url.replace('\u200b', '').replace('\u200c', '').replace('\u200d', '').replace('\ufeff', '')
+    # Strip all types of whitespace (including non-breaking spaces)
+    url = url.strip().replace('\u00a0', ' ').strip()
 
     if not url:
         return "Please provide a Jira URL. Example: `set jira url https://your-instance.atlassian.net`"
 
-    if not (url.startswith("http://") or url.startswith("https://")):
-        return f"Jira URL should start with http:// or https://. Got: {repr(url)}"
+    # Check if URL starts with http:// or https:// (case-insensitive)
+    url_lower = url.lower()
+    starts_with_http = url_lower.startswith("http://")
+    starts_with_https = url_lower.startswith("https://")
+    
+    if not (starts_with_http or starts_with_https):
+        logger.error(
+            f"URL validation failed. Input: {repr(text)}, Extracted: {repr(url)}, "
+            f"Length: {len(url)}, First char code: {ord(url[0]) if url else 'N/A'}, "
+            f"First 10 chars: {repr(url[:10])}"
+        )
+        return f"Jira URL should start with http:// or https://. Got: {repr(url[:60])}"
 
     MAX_URL_LENGTH = 2048
     if len(url) > MAX_URL_LENGTH:
