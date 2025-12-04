@@ -25,6 +25,8 @@ from src.commands import (
     set_jira_defaults,
     show_jira_defaults,
     clear_jira_default,
+    test_jira_connection,
+    get_jira_bugs,
     get_settings,
     get_channel_welcome_shown,
     set_channel_welcome_shown,
@@ -240,6 +242,16 @@ def handle_mention(event, say, body):
     # Clear Jira Default
     if contains(text, ["clear jira default", "remove jira default", "delete jira default"]):
         say(clear_jira_default(text, team_id, channel_id=channel_id))
+        return
+
+    # Test Jira Connection
+    if contains(text, ["test jira connection", "test jira", "jira test"]):
+        say(test_jira_connection(team_id, channel_id=channel_id))
+        return
+
+    # Get Jira Bugs
+    if contains(text, ["get bugs", "get jira bugs", "list bugs", "show bugs"]):
+        say(get_jira_bugs(team_id, channel_id=channel_id))
         return
 
     # Default fallback
