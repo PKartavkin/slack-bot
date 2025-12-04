@@ -27,6 +27,11 @@ OPENAI_API_TIMEOUT = 30.0
 
 # ToDo: make several small files, like jira_commands.....
 def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     if client is None:
         return (
             "Bug report generation is temporarily unavailable: "
@@ -113,6 +118,11 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
 
 
 def show_bug_report_template(team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     logger.debug("Show bug report template")
     try:
         settings = get_settings(team_id, channel_id=channel_id)
@@ -122,6 +132,11 @@ def show_bug_report_template(team_id: str, channel_id: str | None = None) -> str
 
 
 def edit_bug_report_template(text: str, team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     logger.debug("Editing bug report template")
     payload = strip_command(text, "edit bug template").strip()
     
@@ -136,6 +151,11 @@ def edit_bug_report_template(text: str, team_id: str, channel_id: str | None = N
 
 
 def show_project_overview(team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     logger.debug("Show project overview")
     try:
         settings = get_settings(team_id, channel_id=channel_id)
@@ -147,6 +167,11 @@ def show_project_overview(team_id: str, channel_id: str | None = None) -> str:
 
 
 def update_project_overview(text: str, team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     logger.debug("Updating project overview")
     payload = strip_command(text, "update docs").strip()
     
@@ -161,6 +186,11 @@ def update_project_overview(text: str, team_id: str, channel_id: str | None = No
 
 
 def set_use_documentation(flag: bool, team_id: str, channel_id: str | None = None) -> str:
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     logger.debug(f"Use documentation flag: {flag}")
     try:
         _update_settings_field(team_id, channel_id, "use_project_context", flag)
@@ -212,6 +242,11 @@ def get_help() -> str:
 
 
 def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     token = strip_command(text, "set jira token").strip()
 
     if not token:
@@ -235,6 +270,11 @@ def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     url = strip_command(text, "set jira url").strip()
 
     if not url:
@@ -258,6 +298,11 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     query = strip_command(text, "set jira query").strip()
 
     if not query:
@@ -281,6 +326,11 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
 
 
 def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     email = strip_command(text, "set jira email").strip()
 
     if not email:
@@ -305,6 +355,11 @@ def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
 
 
 def show_jira_bug_query(team_id: str, channel_id: str | None = None):
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     # Reuse get_settings so project-specific settings are applied if channel/project is set.
     try:
         settings = get_settings(team_id, channel_id=channel_id)
@@ -325,6 +380,11 @@ def set_jira_defaults(text: str, team_id: str, channel_id: str | None = None) ->
     - Single: set jira defaults project=PROJ-123
     - Multiple: set jira defaults project=PROJ-123 type=Bug priority=High
     """
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     payload = strip_command(text, "set jira defaults").strip()
     
     if not payload:
@@ -393,6 +453,11 @@ def show_jira_defaults(team_id: str, channel_id: str | None = None) -> str:
     """
     Show all Jira default field values.
     """
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     try:
         settings = get_settings(team_id, channel_id=channel_id)
         defaults = settings.get("jira_defaults", {})
@@ -419,6 +484,11 @@ def clear_jira_default(text: str, team_id: str, channel_id: str | None = None) -
     Syntax: clear jira default <field>
     Example: clear jira default project
     """
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     field_name = strip_command(text, "clear jira default").strip()
     
     if not field_name:
@@ -509,6 +579,11 @@ def test_jira_connection(team_id: str, channel_id: str | None = None) -> str:
     """
     Test the Jira connection for the current project.
     """
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     try:
         jira, error_msg = _get_jira_client(team_id, channel_id)
         
@@ -538,6 +613,11 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
     """
     Get list of Jira issues according to the JQL query specified in the current project.
     """
+    # Check if project is required
+    error_msg = _require_project(team_id, channel_id)
+    if error_msg:
+        return error_msg
+    
     try:
         jira, error_msg = _get_jira_client(team_id, channel_id)
         
@@ -843,6 +923,25 @@ def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
     except Exception as e:
         logger.exception("Error getting channel project name: %s", e)
         return None  # Return None on error to allow graceful degradation
+
+
+def _require_project(team_id: str, channel_id: str | None) -> str | None:
+    """
+    Check if a project is set for the channel. Returns None if project is set,
+    or an error message string if project is not set.
+    """
+    if channel_id is None:
+        # No channel context, allow operation (might be used in DMs or fallback scenarios)
+        return None
+    
+    project_name = get_channel_project_name(team_id, channel_id)
+    if not project_name:
+        return (
+            "❌ No project is set for this channel.\n"
+            "Please set a project first using: `use project <project-name>`\n"
+            "Example: `use project Mobile app`"
+        )
+    return None
 
 
 def get_channel_welcome_shown(team_id: str, channel_id: str) -> bool:
