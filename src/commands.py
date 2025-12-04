@@ -167,6 +167,10 @@ def get_help() -> str:
     **update docs**
     **use docs** - bot will used project documentation for bug reports
     **ignore docs** - bot will ignore docs
+    **set jira default <field> <value>** - set a default value for a Jira field (e.g., `set jira default project PROJ-123`)
+    **set jira defaults field1=value1 field2=value2** - set multiple Jira default fields at once
+    **show jira defaults** - show all Jira default field values
+    **clear jira default <field>** - clear a Jira default field value
     """
 
 
@@ -269,6 +273,204 @@ def show_jira_bug_query(team_id: str, channel_id: str | None = None):
         return f"Current Jira bug query:\n```\n{query}\n```"
     except Exception as e:
         return get_mongodb_error_message(e, "show_jira_bug_query")
+
+
+def set_jira_default(text: str, team_id: str, channel_id: str | None = None) -> str:
+    """
+    Set a single Jira default field value.
+    Syntax: set jira default <field> <value>
+    Example: set jira default project PROJ-123
+    """
+    # Strip command keywords
+    payload = strip_command(
+        text,
+        ["set jira default", "update jira default"]
+    ).strip()
+    
+    if not payload:
+        return (
+            "Please provide a field name and value.\n"
+            "Example: `set jira default project PROJ-123`\n"
+            "Or use `set jira defaults` to set multiple fields at once."
+        )
+    
+    # Parse field and value (split on first space)
+    parts = payload.split(None, 1)
+    if len(parts) < 2:
+        return (
+            "Please provide both a field name and value.\n"
+            "Example: `set jira default project PROJ-123`"
+        )
+    
+    field_name = parts[0].strip()
+    field_value = parts[1].strip()
+    
+    if not field_name:
+        return "Field name cannot be empty."
+    
+    if not field_value:
+        return "Field value cannot be empty."
+    
+    MAX_FIELD_NAME_LENGTH = 64
+    if len(field_name) > MAX_FIELD_NAME_LENGTH:
+        return f"Field name is too long (max {MAX_FIELD_NAME_LENGTH} characters)."
+    
+    MAX_FIELD_VALUE_LENGTH = 512
+    if len(field_value) > MAX_FIELD_VALUE_LENGTH:
+        return f"Field value is too long (max {MAX_FIELD_VALUE_LENGTH} characters)."
+    
+    try:
+        # Get current defaults
+        settings = get_settings(team_id, channel_id=channel_id)
+        defaults = settings.get("jira_defaults", {})
+        
+        # Update the specific field
+        defaults[field_name] = field_value
+        
+        # Save back to settings
+        _update_settings_field(team_id, channel_id, "jira_defaults", defaults)
+        
+        return f"Jira default field *{field_name}* set to *{field_value}*."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_default")
+
+
+def set_jira_defaults(text: str, team_id: str, channel_id: str | None = None) -> str:
+    """
+    Set multiple Jira default field values at once.
+    Syntax: set jira defaults field1=value1 field2=value2 ...
+    Example: set jira defaults project=PROJ-123 type=Bug priority=High
+    """
+    # Strip command keywords
+    payload = strip_command(
+        text,
+        ["set jira defaults", "update jira defaults"]
+    ).strip()
+    
+    if not payload:
+        return (
+            "Please provide field=value pairs.\n"
+            "Example: `set jira defaults project=PROJ-123 type=Bug priority=High`"
+        )
+    
+    # Parse field=value pairs
+    pairs = payload.split()
+    defaults = {}
+    errors = []
+    
+    for pair in pairs:
+        if '=' not in pair:
+            errors.append(f"Invalid format: '{pair}' (expected field=value)")
+            continue
+        
+        field_name, field_value = pair.split('=', 1)
+        field_name = field_name.strip()
+        field_value = field_value.strip()
+        
+        if not field_name:
+            errors.append(f"Empty field name in: '{pair}'")
+            continue
+        
+        if not field_value:
+            errors.append(f"Empty field value in: '{pair}'")
+            continue
+        
+        MAX_FIELD_NAME_LENGTH = 64
+        if len(field_name) > MAX_FIELD_NAME_LENGTH:
+            errors.append(f"Field name too long: '{field_name}' (max {MAX_FIELD_NAME_LENGTH} characters)")
+            continue
+        
+        MAX_FIELD_VALUE_LENGTH = 512
+        if len(field_value) > MAX_FIELD_VALUE_LENGTH:
+            errors.append(f"Field value too long: '{field_value}' (max {MAX_FIELD_VALUE_LENGTH} characters)")
+            continue
+        
+        defaults[field_name] = field_value
+    
+    if errors:
+        return "Errors found:\n" + "\n".join(f"- {error}" for error in errors)
+    
+    if not defaults:
+        return "No valid field=value pairs found."
+    
+    try:
+        # Get current defaults and merge
+        settings = get_settings(team_id, channel_id=channel_id)
+        current_defaults = settings.get("jira_defaults", {})
+        current_defaults.update(defaults)
+        
+        # Save back to settings
+        _update_settings_field(team_id, channel_id, "jira_defaults", current_defaults)
+        
+        fields_list = ", ".join(f"*{k}*={v}" for k, v in defaults.items())
+        return f"Jira defaults updated: {fields_list}."
+    except Exception as e:
+        return get_mongodb_error_message(e, "set_jira_defaults")
+
+
+def show_jira_defaults(team_id: str, channel_id: str | None = None) -> str:
+    """
+    Show all Jira default field values.
+    """
+    try:
+        settings = get_settings(team_id, channel_id=channel_id)
+        defaults = settings.get("jira_defaults", {})
+        
+        if not defaults:
+            return (
+                "No Jira default fields are set.\n"
+                "Use `set jira default <field> <value>` to set a single field,\n"
+                "or `set jira defaults field1=value1 field2=value2` to set multiple fields."
+            )
+        
+        lines = ["*Jira default fields:*"]
+        for field_name, field_value in sorted(defaults.items()):
+            lines.append(f"  • *{field_name}*: {field_value}")
+        
+        return "\n".join(lines)
+    except Exception as e:
+        return get_mongodb_error_message(e, "show_jira_defaults")
+
+
+def clear_jira_default(text: str, team_id: str, channel_id: str | None = None) -> str:
+    """
+    Clear a specific Jira default field value.
+    Syntax: clear jira default <field>
+    Example: clear jira default project
+    """
+    # Strip command keywords
+    field_name = strip_command(
+        text,
+        ["clear jira default", "remove jira default", "delete jira default"]
+    ).strip()
+    
+    if not field_name:
+        return (
+            "Please provide a field name to clear.\n"
+            "Example: `clear jira default project`"
+        )
+    
+    MAX_FIELD_NAME_LENGTH = 64
+    if len(field_name) > MAX_FIELD_NAME_LENGTH:
+        return f"Field name is too long (max {MAX_FIELD_NAME_LENGTH} characters)."
+    
+    try:
+        # Get current defaults
+        settings = get_settings(team_id, channel_id=channel_id)
+        defaults = settings.get("jira_defaults", {})
+        
+        if field_name not in defaults:
+            return f"Jira default field *{field_name}* is not set."
+        
+        # Remove the field
+        del defaults[field_name]
+        
+        # Save back to settings (empty dict if no defaults left)
+        _update_settings_field(team_id, channel_id, "jira_defaults", defaults)
+        
+        return f"Jira default field *{field_name}* has been cleared."
+    except Exception as e:
+        return get_mongodb_error_message(e, "clear_jira_default")
 
 
 def get_settings(team_id: str, channel_id: str | None = None):
@@ -576,6 +778,7 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     jira_url = settings.get("jira_url", "").strip()
     jira_token = settings.get("jira_token", "").strip()
     jira_email = settings.get("jira_email", "").strip()
+    jira_defaults = settings.get("jira_defaults", {})
     
     lines = []
     lines.append(f"*Project name:* {project_name if project_name else 'N/A'}")
@@ -584,6 +787,12 @@ def show_channel_status(team_id: str, channel_id: str | None) -> str:
     lines.append(f"*Jira URL:* {jira_url if jira_url else 'N/A'}")
     lines.append(f"*Jira token:* {'set' if jira_token else 'not set'}")
     lines.append(f"*Jira email:* {jira_email if jira_email else 'N/A'}")
+    
+    if jira_defaults:
+        defaults_str = ", ".join(f"{k}={v}" for k, v in sorted(jira_defaults.items()))
+        lines.append(f"*Jira defaults:* {defaults_str}")
+    else:
+        lines.append("*Jira defaults:* none")
     
     return "\n".join(lines)
 
@@ -615,6 +824,7 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
         "jira_url",
         "jira_bug_query",
         "jira_email",
+        "jira_defaults",
     }
     
     try:

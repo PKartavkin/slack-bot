@@ -21,6 +21,10 @@ from src.commands import (
     set_jira_bug_query,
     show_jira_bug_query,
     set_jira_email,
+    set_jira_default,
+    set_jira_defaults,
+    show_jira_defaults,
+    clear_jira_default,
     get_settings,
     get_channel_welcome_shown,
     set_channel_welcome_shown,
@@ -216,6 +220,26 @@ def handle_mention(event, say, body):
     # Set Jira Email
     if contains(text, ["set jira email", "update jira email"]):
         say(set_jira_email(text, team_id, channel_id=channel_id))
+        return
+
+    # Set Jira Default (single field)
+    if contains(text, ["set jira default", "update jira default"]):
+        say(set_jira_default(text, team_id, channel_id=channel_id))
+        return
+
+    # Set Jira Defaults (multiple fields)
+    if contains(text, ["set jira defaults", "update jira defaults"]):
+        say(set_jira_defaults(text, team_id, channel_id=channel_id))
+        return
+
+    # Show Jira Defaults
+    if contains(text, ["show jira defaults", "jira defaults", "list jira defaults"]):
+        say(show_jira_defaults(team_id, channel_id=channel_id))
+        return
+
+    # Clear Jira Default
+    if contains(text, ["clear jira default", "remove jira default", "delete jira default"]):
+        say(clear_jira_default(text, team_id, channel_id=channel_id))
         return
 
     # Default fallback
