@@ -101,7 +101,7 @@ def handle_mention(event, say, body):
         if not channel_id:
             say("I couldn't detect the channel for this request.")
             return
-        say(set_channel_project(text, team_id, channel_id))
+        say(set_channel_project(clean_text, team_id, channel_id))
         return
 
     # Show channel status
@@ -117,7 +117,7 @@ def handle_mention(event, say, body):
     # Generate bug report
     if contains(text, ["create bug report"]):
         # Pass channel_id so project-specific configuration is used if set.
-        say(generate_bug_report(text, team_id, channel_id=channel_id))
+        say(generate_bug_report(clean_text, team_id, channel_id=channel_id))
         return
 
     # Help
@@ -127,14 +127,14 @@ def handle_mention(event, say, body):
 
     # Edit bug report template
     if contains(text, ["edit bug template"]):
-        payload = strip_command(text, "edit bug template")
+        payload = strip_command(clean_text, "edit bug template")
         if len(payload) < MIN_BUG_REPORT_TEMPLATE_LENGTH:
             say(
                 f"Bug report template is too short. "
                 f"Must be at least {MIN_BUG_REPORT_TEMPLATE_LENGTH} characters."
             )
             return
-        say(edit_bug_report_template(text, team_id, channel_id=channel_id))
+        say(edit_bug_report_template(clean_text, team_id, channel_id=channel_id))
         return
 
     # Show project overview
@@ -144,14 +144,14 @@ def handle_mention(event, say, body):
 
     # Update project overview
     if contains(text, ["update docs"]):
-        payload = strip_command(text, "update docs")
+        payload = strip_command(clean_text, "update docs")
         if len(payload) < MIN_PROJECT_OVERVIEW_LENGTH:
             say(
                 f"Project description is too short. "
                 f"Must be at least {MIN_PROJECT_OVERVIEW_LENGTH} characters."
             )
             return
-        say(update_project_overview(text, team_id, channel_id=channel_id))
+        say(update_project_overview(clean_text, team_id, channel_id=channel_id))
         return
 
     # Use project overview for bug report generation
@@ -168,17 +168,17 @@ def handle_mention(event, say, body):
 
     # Set Jira Token
     if contains(text, ["set jira token"]):
-        say(set_jira_token(text, team_id, channel_id=channel_id))
+        say(set_jira_token(clean_text, team_id, channel_id=channel_id))
         return
 
     # Set Jira URL
     if contains(text, ["set jira url"]):
-        say(set_jira_url(text, team_id, channel_id=channel_id))
+        say(set_jira_url(clean_text, team_id, channel_id=channel_id))
         return
 
     # Set Jira Bug Query
     if contains(text, ["set jira query"]):
-        say(set_jira_bug_query(text, team_id, channel_id=channel_id))
+        say(set_jira_bug_query(clean_text, team_id, channel_id=channel_id))
         return
 
     # Show Jira Bug Query
@@ -188,12 +188,12 @@ def handle_mention(event, say, body):
 
     # Set Jira Email
     if contains(text, ["set jira email"]):
-        say(set_jira_email(text, team_id, channel_id=channel_id))
+        say(set_jira_email(clean_text, team_id, channel_id=channel_id))
         return
 
     # Set Jira Defaults
     if contains(text, ["set jira defaults"]):
-        say(set_jira_defaults(text, team_id, channel_id=channel_id))
+        say(set_jira_defaults(clean_text, team_id, channel_id=channel_id))
         return
 
     # Show Jira Defaults
@@ -203,7 +203,7 @@ def handle_mention(event, say, body):
 
     # Clear Jira Default
     if contains(text, ["clear jira default"]):
-        say(clear_jira_default(text, team_id, channel_id=channel_id))
+        say(clear_jira_default(clean_text, team_id, channel_id=channel_id))
         return
 
     # Test Jira Connection

@@ -19,19 +19,30 @@ def strip_command(text: str, command: str) -> str:
     if not text or not command:
         return text.strip() if text else ""
     
+    # Normalize both to lowercase for finding, but preserve original for extraction
     lowered_text = text.lower()
     lowered_command = command.lower()
     
-    # Find the command in the text
+    # Find the command in the text (case-insensitive)
     idx = lowered_text.find(lowered_command)
     if idx == -1:
         # Command not found, return original text stripped
         return text.strip()
     
-    # Remove the command phrase
-    # Use original text to preserve case in the payload
+    # Find the actual command in the original text at the same position
+    # This handles cases where the command might have different casing
+    # We need to find the exact length of the matched command in the original text
+    command_end = idx + len(command)
+    
+    # Extract everything after the command
+    # The command should match exactly at position idx in the original text
+    # (case-insensitive match means the positions align)
+    after = text[command_end:]
+    
+    # Also get everything before the command (in case there's extra text)
     before = text[:idx]
-    after = text[idx + len(command):]
+    
+    # Combine and strip - this removes the command and any surrounding whitespace
     cleaned = (before + after).strip()
     
     return cleaned
