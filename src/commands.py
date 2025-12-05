@@ -17,13 +17,29 @@ from src.utils import (
     get_mongodb_error_message,
 )
 from src.rate_limiter import openai_rate_limiter
+from src.constants import (
+    OPENAI_API_TIMEOUT_SECONDS,
+    OPENAI_TEMPERATURE,
+    OPENAI_MODEL,
+    MAX_BUG_REPORT_INPUT_LENGTH,
+    JIRA_CLIENT_TIMEOUT_SECONDS,
+    MAX_JIRA_TOKEN_LENGTH,
+    MIN_JIRA_TOKEN_LENGTH,
+    MAX_JIRA_URL_LENGTH,
+    MAX_JIRA_QUERY_LENGTH,
+    MIN_JIRA_QUERY_LENGTH,
+    MAX_JIRA_EMAIL_LENGTH,
+    MAX_JIRA_ISSUES_LIMIT,
+    MAX_JIRA_FIELD_NAME_LENGTH,
+    MAX_JIRA_FIELD_VALUE_LENGTH,
+    HTTP_STATUS_BAD_REQUEST,
+    HTTP_STATUS_UNAUTHORIZED,
+    HTTP_STATUS_FORBIDDEN,
+)
 
 # Initialize OpenAI client - assumes OPENAI_API_KEY is validated at startup
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-
-# OpenAI API timeout in seconds
-OPENAI_API_TIMEOUT = 30.0
 
 
 # ToDo: make several small files, like jira_commands.....
@@ -44,14 +60,13 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
     if not is_allowed:
         return error_msg
 
-    MAX_INPUT_LENGTH = 4000
-    if len(text) > MAX_INPUT_LENGTH:
+    if len(text) > MAX_BUG_REPORT_INPUT_LENGTH:
         logger.warning(
             "Bug report input too long (len=%s) for team_id=%s", len(text), team_id
         )
         return (
             f"Your message is too long for bug report generation. "
-            f"Please shorten it to under {MAX_INPUT_LENGTH} characters."
+            f"Please shorten it to under {MAX_BUG_REPORT_INPUT_LENGTH} characters."
         )
 
     logger.debug("Creating formatting")
@@ -85,16 +100,16 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-            timeout=OPENAI_API_TIMEOUT,
+            temperature=OPENAI_TEMPERATURE,
+            timeout=OPENAI_API_TIMEOUT_SECONDS,
         )
     except APITimeoutError:
         logger.error(
             "OpenAI API timeout while generating bug report for team_id=%s (timeout=%ss)",
             team_id,
-            OPENAI_API_TIMEOUT,
+            OPENAI_API_TIMEOUT_SECONDS,
         )
         return (
             "The AI service took too long to respond. "
@@ -253,14 +268,13 @@ def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
     if not token:
         return "Please provide a Jira token. Example: `set jira token <your-token>`"
 
-    if len(token) < 5:
+    if len(token) < MIN_JIRA_TOKEN_LENGTH:
         return "Jira token looks too short. Please send a valid token."
 
-    MAX_TOKEN_LENGTH = 4096
-    if len(token) > MAX_TOKEN_LENGTH:
+    if len(token) > MAX_JIRA_TOKEN_LENGTH:
         return (
             f"Jira token looks unusually long. "
-            f"Please ensure it's correct and shorter than {MAX_TOKEN_LENGTH} characters."
+            f"Please ensure it's correct and shorter than {MAX_JIRA_TOKEN_LENGTH} characters."
         )
 
     try:
@@ -309,11 +323,10 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
         )
         return f"Jira URL should start with http:// or https://. Got: {repr(url[:60])}"
 
-    MAX_URL_LENGTH = 2048
-    if len(url) > MAX_URL_LENGTH:
+    if len(url) > MAX_JIRA_URL_LENGTH:
         return (
             f"Jira URL is too long. "
-            f"Please provide a URL shorter than {MAX_URL_LENGTH} characters."
+            f"Please provide a URL shorter than {MAX_JIRA_URL_LENGTH} characters."
         )
 
     try:
@@ -334,14 +347,13 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
     if not query:
         return "Please provide a JQL query. Example: `set jira query project = PROJ AND status != Done`"
 
-    if len(query) < 5:
+    if len(query) < MIN_JIRA_QUERY_LENGTH:
         return "Jira query looks too short. Please provide a valid JQL query."
 
-    MAX_QUERY_LENGTH = 8000
-    if len(query) > MAX_QUERY_LENGTH:
+    if len(query) > MAX_JIRA_QUERY_LENGTH:
         return (
             f"Jira query is too long. "
-            f"Please shorten it to under {MAX_QUERY_LENGTH} characters."
+            f"Please shorten it to under {MAX_JIRA_QUERY_LENGTH} characters."
         )
 
     try:
@@ -366,11 +378,10 @@ def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
     if "@" not in email or "." not in email.split("@")[-1]:
         return "Please provide a valid email address."
 
-    MAX_EMAIL_LENGTH = 256
-    if len(email) > MAX_EMAIL_LENGTH:
+    if len(email) > MAX_JIRA_EMAIL_LENGTH:
         return (
             f"Jira email is too long. "
-            f"Please provide an email shorter than {MAX_EMAIL_LENGTH} characters."
+            f"Please provide an email shorter than {MAX_JIRA_EMAIL_LENGTH} characters."
         )
 
     try:
@@ -442,14 +453,12 @@ def set_jira_defaults(text: str, team_id: str, channel_id: str | None = None) ->
             errors.append(f"Empty field value in: '{pair}'")
             continue
         
-        MAX_FIELD_NAME_LENGTH = 64
-        if len(field_name) > MAX_FIELD_NAME_LENGTH:
-            errors.append(f"Field name too long: '{field_name}' (max {MAX_FIELD_NAME_LENGTH} characters)")
+        if len(field_name) > MAX_JIRA_FIELD_NAME_LENGTH:
+            errors.append(f"Field name too long: '{field_name}' (max {MAX_JIRA_FIELD_NAME_LENGTH} characters)")
             continue
         
-        MAX_FIELD_VALUE_LENGTH = 512
-        if len(field_value) > MAX_FIELD_VALUE_LENGTH:
-            errors.append(f"Field value too long: '{field_value}' (max {MAX_FIELD_VALUE_LENGTH} characters)")
+        if len(field_value) > MAX_JIRA_FIELD_VALUE_LENGTH:
+            errors.append(f"Field value too long: '{field_value}' (max {MAX_JIRA_FIELD_VALUE_LENGTH} characters)")
             continue
         
         defaults[field_name] = field_value
@@ -523,9 +532,8 @@ def clear_jira_default(text: str, team_id: str, channel_id: str | None = None) -
             "Example: `clear jira default project`"
         )
     
-    MAX_FIELD_NAME_LENGTH = 64
-    if len(field_name) > MAX_FIELD_NAME_LENGTH:
-        return f"Field name is too long (max {MAX_FIELD_NAME_LENGTH} characters)."
+    if len(field_name) > MAX_JIRA_FIELD_NAME_LENGTH:
+        return f"Field name is too long (max {MAX_JIRA_FIELD_NAME_LENGTH} characters)."
     
     try:
         # Get current defaults
@@ -583,14 +591,14 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
             jira = JIRA(
                 server=jira_url,
                 basic_auth=(jira_email, jira_token),
-                timeout=10,
+                timeout=JIRA_CLIENT_TIMEOUT_SECONDS,
             )
             return jira, ""
         except JIRAError as e:
             logger.exception("Jira connection error for team_id=%s", team_id)
-            if e.status_code == 401:
+            if e.status_code == HTTP_STATUS_UNAUTHORIZED:
                 return None, "Authentication failed. Please check your Jira email and token."
-            elif e.status_code == 403:
+            elif e.status_code == HTTP_STATUS_FORBIDDEN:
                 return None, "Access forbidden. Please check your Jira permissions."
             else:
                 return None, f"Failed to connect to Jira: {e.text or str(e)}"
@@ -622,9 +630,9 @@ def test_jira_connection(team_id: str, channel_id: str | None = None) -> str:
             return f"✅ Jira connection successful!\nConnected as: *{current_user}*"
         except JIRAError as e:
             logger.exception("Jira API error during connection test for team_id=%s", team_id)
-            if e.status_code == 401:
+            if e.status_code == HTTP_STATUS_UNAUTHORIZED:
                 return "❌ Authentication failed. Please check your Jira email and token."
-            elif e.status_code == 403:
+            elif e.status_code == HTTP_STATUS_FORBIDDEN:
                 return "❌ Access forbidden. Please check your Jira permissions."
             else:
                 return f"❌ Jira connection test failed: {e.text or str(e)}"
@@ -663,15 +671,14 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
         
         # Fetch issues using JQL
         try:
-            # Limit to 50 issues to avoid overwhelming the response
-            MAX_ISSUES = 50
-            issues = jira.search_issues(jql_query, maxResults=MAX_ISSUES)
+            # Limit to avoid overwhelming the response
+            issues = jira.search_issues(jql_query, maxResults=MAX_JIRA_ISSUES_LIMIT)
             
             if not issues:
                 return f"No issues found matching the query:\n```{jql_query}```"
             
             # Format issues for display
-            lines = [f"Found *{len(issues)}* issue(s) (showing up to {MAX_ISSUES}):\n"]
+            lines = [f"Found *{len(issues)}* issue(s) (showing up to {MAX_JIRA_ISSUES_LIMIT}):\n"]
             
             for issue in issues:
                 # Get key fields
@@ -689,21 +696,21 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
                 lines.append(f"  <{issue_url}|View in Jira>")
                 lines.append("")  # Empty line between issues
             
-            if len(issues) == MAX_ISSUES:
-                lines.append(f"\n_Note: Showing first {MAX_ISSUES} issues. There may be more._")
+            if len(issues) == MAX_JIRA_ISSUES_LIMIT:
+                lines.append(f"\n_Note: Showing first {MAX_JIRA_ISSUES_LIMIT} issues. There may be more._")
             
             return "\n".join(lines)
         except JIRAError as e:
             logger.exception("Jira API error fetching bugs for team_id=%s", team_id)
-            if e.status_code == 400:
+            if e.status_code == HTTP_STATUS_BAD_REQUEST:
                 return (
                     f"❌ Invalid JQL query:\n```{jql_query}```\n"
                     f"Error: {e.text or str(e)}\n"
                     f"Please check your query syntax and try again."
                 )
-            elif e.status_code == 401:
+            elif e.status_code == HTTP_STATUS_UNAUTHORIZED:
                 return "❌ Authentication failed. Please check your Jira email and token."
-            elif e.status_code == 403:
+            elif e.status_code == HTTP_STATUS_FORBIDDEN:
                 return "❌ Access forbidden. Please check your Jira permissions."
             else:
                 return f"❌ Failed to fetch issues: {e.text or str(e)}"

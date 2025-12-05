@@ -3,13 +3,14 @@ from pymongo.errors import ConnectionFailure, ConfigurationError
 import os
 
 from src.logger import logger
+from src.constants import MONGODB_SERVER_SELECTION_TIMEOUT_MS
 
 try:
     mongo_url = os.environ.get("MONGO_URL")
     if not mongo_url:
         raise ValueError("MONGO_URL environment variable is not set")
     
-    client = MongoClient(mongo_url, serverSelectionTimeoutMS=5000)
+    client = MongoClient(mongo_url, serverSelectionTimeoutMS=MONGODB_SERVER_SELECTION_TIMEOUT_MS)
     # Test the connection
     client.admin.command('ping')
     db = client["slackbot"]

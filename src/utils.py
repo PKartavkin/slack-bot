@@ -1,5 +1,7 @@
 import re
 
+from src.constants import MAX_SLACK_ID_LENGTH, MAX_PROJECT_NAME_LENGTH
+
 
 def contains(text: str, keywords: list[str]) -> bool:
     return any(k in text for k in keywords)
@@ -114,9 +116,8 @@ def sanitize_slack_id(identifier: str | None, name: str = "identifier", allow_no
         )
     
     # Reasonable length limit
-    MAX_ID_LENGTH = 256
-    if len(identifier) > MAX_ID_LENGTH:
-        raise ValueError(f"{name} is too long (max {MAX_ID_LENGTH} characters): {len(identifier)}")
+    if len(identifier) > MAX_SLACK_ID_LENGTH:
+        raise ValueError(f"{name} is too long (max {MAX_SLACK_ID_LENGTH} characters): {len(identifier)}")
     
     return identifier
 
@@ -178,7 +179,6 @@ def sanitize_project_name(project_name: str) -> str:
         )
     
     # Reasonable length limit (already checked in set_channel_project, but enforce here too)
-    MAX_PROJECT_NAME_LENGTH = 128
     if len(project_name) > MAX_PROJECT_NAME_LENGTH:
         raise ValueError(
             f"Project name is too long (max {MAX_PROJECT_NAME_LENGTH} characters): {len(project_name)}"

@@ -8,6 +8,14 @@ from starlette.concurrency import run_in_threadpool
 
 from src.logger import logger
 from src.config import validate_environment_variables
+from src.constants import (
+    MIN_TEXT_LENGTH,
+    MAX_TEXT_LENGTH,
+    MIN_PROJECT_OVERVIEW_LENGTH,
+    MIN_BUG_REPORT_TEMPLATE_LENGTH,
+    HTTP_STATUS_BAD_REQUEST,
+    DEFAULT_PORT,
+)
 from src.commands import (
     generate_bug_report,
     get_help,
@@ -60,11 +68,6 @@ def handle_mention(event, say, body):
     text = clean_text.lower()
     team_id = body.get("team_id") or event.get("team", {}).get("id")
     channel_id = event.get("channel")
-    
-    MIN_TEXT_LENGTH = 3
-    MAX_TEXT_LENGTH = 1000
-    MIN_PROJECT_OVERVIEW_LENGTH = 50
-    MIN_BUG_REPORT_TEMPLATE_LENGTH = 25
 
     # Per-channel welcome message on first mention in that channel
     if team_id and channel_id:
@@ -226,7 +229,7 @@ async def slack_events(request: Request):
     try:
         data = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="No JSON received")
+        raise HTTPException(status_code=HTTP_STATUS_BAD_REQUEST, detail="No JSON received")
 
     team_id = data.get("team_id") or (data.get("team") or {}).get("id")
     if team_id:
@@ -250,6 +253,6 @@ if __name__ == "__main__":
     uvicorn.run(
         "app:fastapi_app",
         host="0.0.0.0",
-        port=int(os.getenv("PORT", 3000)),
+        port=int(os.getenv("PORT", DEFAULT_PORT)),
         reload=os.getenv("ENV") != "prod",
     )
