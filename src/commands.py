@@ -264,9 +264,16 @@ def set_jira_token(text: str, team_id: str, channel_id: str | None = None):
         )
 
     try:
+        logger.info(
+            "Updating Jira token for team_id=%s, channel_id=%s (token length: %s)",
+            team_id, channel_id, len(token)
+        )
         _update_settings_field(team_id, channel_id, "jira_token", token)
+        logger.info("Jira token updated successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         return "Jira token has been updated."
     except Exception as e:
+        logger.error("Error updating Jira token for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception updating Jira token")
         return get_mongodb_error_message(e, "set_jira_token")
 
 
@@ -317,9 +324,13 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
         )
 
     try:
+        logger.info("Updating Jira URL for team_id=%s, channel_id=%s, URL=%s", team_id, channel_id, url)
         _update_settings_field(team_id, channel_id, "jira_url", url)
+        logger.info("Jira URL updated successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         return "Jira URL has been updated."
     except Exception as e:
+        logger.error("Error updating Jira URL for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception updating Jira URL")
         return get_mongodb_error_message(e, "set_jira_url")
 
 
@@ -345,9 +356,17 @@ def set_jira_bug_query(text: str, team_id: str, channel_id: str | None = None):
         )
 
     try:
+        logger.info(
+            "Updating Jira bug query for team_id=%s, channel_id=%s, query_length=%s",
+            team_id, channel_id, len(query)
+        )
+        logger.debug("Jira bug query for team_id=%s, channel_id=%s: %s", team_id, channel_id, query)
         _update_settings_field(team_id, channel_id, "jira_bug_query", query)
+        logger.info("Jira bug query updated successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         return "Jira bug query has been updated."
     except Exception as e:
+        logger.error("Error updating Jira bug query for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception updating Jira bug query")
         return get_mongodb_error_message(e, "set_jira_bug_query")
 
 
@@ -374,9 +393,13 @@ def set_jira_email(text: str, team_id: str, channel_id: str | None = None):
         )
 
     try:
+        logger.info("Updating Jira email for team_id=%s, channel_id=%s, email=%s", team_id, channel_id, email)
         _update_settings_field(team_id, channel_id, "jira_email", email)
+        logger.info("Jira email updated successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         return "Jira email has been updated."
     except Exception as e:
+        logger.error("Error updating Jira email for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception updating Jira email")
         return get_mongodb_error_message(e, "set_jira_email")
 
 
@@ -467,11 +490,22 @@ def set_jira_defaults(text: str, team_id: str, channel_id: str | None = None) ->
         current_defaults.update(defaults)
         
         # Save back to settings
+        logger.info(
+            "Updating Jira defaults for team_id=%s, channel_id=%s, fields=%s",
+            team_id, channel_id, list(defaults.keys())
+        )
+        logger.debug(
+            "Jira defaults values for team_id=%s, channel_id=%s: %s",
+            team_id, channel_id, defaults
+        )
         _update_settings_field(team_id, channel_id, "jira_defaults", current_defaults)
+        logger.info("Jira defaults updated successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         
         fields_list = ", ".join(f"*{k}*={v}" for k, v in defaults.items())
         return f"Jira defaults updated: {fields_list}."
     except Exception as e:
+        logger.error("Error updating Jira defaults for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception updating Jira defaults")
         return get_mongodb_error_message(e, "set_jira_defaults")
 
 
@@ -539,10 +573,17 @@ def clear_jira_default(text: str, team_id: str, channel_id: str | None = None) -
         del defaults[field_name]
         
         # Save back to settings (empty dict if no defaults left)
+        logger.info(
+            "Clearing Jira default field for team_id=%s, channel_id=%s, field=%s",
+            team_id, channel_id, field_name
+        )
         _update_settings_field(team_id, channel_id, "jira_defaults", defaults)
+        logger.info("Jira default field cleared successfully for team_id=%s, channel_id=%s", team_id, channel_id)
         
         return f"Jira default field *{field_name}* has been cleared."
     except Exception as e:
+        logger.error("Error clearing Jira default for team_id=%s, channel_id=%s, field=%s: %s", team_id, channel_id, field_name, str(e))
+        logger.exception("Exception clearing Jira default")
         return get_mongodb_error_message(e, "clear_jira_default")
 
 
@@ -552,12 +593,18 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
     Returns (JIRA client, error_message).
     If error_message is not empty, client will be None.
     """
+    logger.debug("Getting Jira client for team_id=%s, channel_id=%s", team_id, channel_id)
     try:
         settings = get_settings(team_id, channel_id=channel_id)
         
         jira_url = settings.get("jira_url", "").strip()
         jira_token = settings.get("jira_token", "").strip()
         jira_email = settings.get("jira_email", "").strip()
+        
+        logger.debug(
+            "Jira settings check - URL present: %s, Token present: %s, Email present: %s",
+            bool(jira_url), bool(jira_token), bool(jira_email)
+        )
         
         # Check if required settings are configured
         missing = []
@@ -570,6 +617,10 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
         
         if missing:
             missing_str = ", ".join(missing)
+            logger.warning(
+                "Jira configuration incomplete for team_id=%s, channel_id=%s. Missing: %s",
+                team_id, channel_id, missing_str
+            )
             return None, (
                 f"Jira is not fully configured. Missing: {missing_str}.\n"
                 f"Please set these using:\n"
@@ -579,15 +630,24 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
             )
         
         # Create Jira client with basic auth (email + API token)
+        logger.debug("Attempting to create Jira client for URL: %s, Email: %s", jira_url, jira_email)
         try:
             jira = JIRA(
                 server=jira_url,
                 basic_auth=(jira_email, jira_token),
                 timeout=10,
             )
+            logger.info(
+                "Jira client created successfully for team_id=%s, channel_id=%s, URL=%s",
+                team_id, channel_id, jira_url
+            )
             return jira, ""
         except JIRAError as e:
-            logger.exception("Jira connection error for team_id=%s", team_id)
+            logger.error(
+                "Jira connection error for team_id=%s, channel_id=%s, URL=%s, status_code=%s, error=%s",
+                team_id, channel_id, jira_url, e.status_code, e.text or str(e)
+            )
+            logger.exception("Jira connection error details for team_id=%s", team_id)
             if e.status_code == 401:
                 return None, "Authentication failed. Please check your Jira email and token."
             elif e.status_code == 403:
@@ -595,9 +655,15 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
             else:
                 return None, f"Failed to connect to Jira: {e.text or str(e)}"
         except Exception as e:
+            logger.error(
+                "Unexpected error creating Jira client for team_id=%s, channel_id=%s, URL=%s, error=%s",
+                team_id, channel_id, jira_url, str(e)
+            )
             logger.exception("Unexpected error creating Jira client for team_id=%s", team_id)
             return None, f"Failed to connect to Jira: {str(e)}"
     except Exception as e:
+        logger.error("Error in _get_jira_client for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception in _get_jira_client")
         return None, get_mongodb_error_message(e, "get_jira_client")
 
 
@@ -605,22 +671,35 @@ def test_jira_connection(team_id: str, channel_id: str | None = None) -> str:
     """
     Test the Jira connection for the current project.
     """
+    logger.info("Testing Jira connection for team_id=%s, channel_id=%s", team_id, channel_id)
+    
     # Check if project is required
     error_msg = _require_project(team_id, channel_id)
     if error_msg:
+        logger.debug("Project not set for team_id=%s, channel_id=%s", team_id, channel_id)
         return error_msg
     
     try:
         jira, error_msg = _get_jira_client(team_id, channel_id)
         
         if error_msg:
+            logger.warning("Jira client creation failed for team_id=%s, channel_id=%s: %s", team_id, channel_id, error_msg)
             return error_msg
         
         # Test connection by fetching current user info
+        logger.debug("Fetching current user info to test Jira connection")
         try:
             current_user = jira.current_user()
+            logger.info(
+                "Jira connection test successful for team_id=%s, channel_id=%s, user=%s",
+                team_id, channel_id, current_user
+            )
             return f"✅ Jira connection successful!\nConnected as: *{current_user}*"
         except JIRAError as e:
+            logger.error(
+                "Jira API error during connection test for team_id=%s, channel_id=%s, status_code=%s, error=%s",
+                team_id, channel_id, e.status_code, e.text or str(e)
+            )
             logger.exception("Jira API error during connection test for team_id=%s", team_id)
             if e.status_code == 401:
                 return "❌ Authentication failed. Please check your Jira email and token."
@@ -629,9 +708,15 @@ def test_jira_connection(team_id: str, channel_id: str | None = None) -> str:
             else:
                 return f"❌ Jira connection test failed: {e.text or str(e)}"
         except Exception as e:
+            logger.error(
+                "Unexpected error testing Jira connection for team_id=%s, channel_id=%s, error=%s",
+                team_id, channel_id, str(e)
+            )
             logger.exception("Unexpected error testing Jira connection for team_id=%s", team_id)
             return f"❌ Jira connection test failed: {str(e)}"
     except Exception as e:
+        logger.error("Exception in test_jira_connection for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception in test_jira_connection")
         return get_mongodb_error_message(e, "test_jira_connection")
 
 
@@ -639,15 +724,19 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
     """
     Get list of Jira issues according to the JQL query specified in the current project.
     """
+    logger.info("Fetching Jira bugs for team_id=%s, channel_id=%s", team_id, channel_id)
+    
     # Check if project is required
     error_msg = _require_project(team_id, channel_id)
     if error_msg:
+        logger.debug("Project not set for team_id=%s, channel_id=%s", team_id, channel_id)
         return error_msg
     
     try:
         jira, error_msg = _get_jira_client(team_id, channel_id)
         
         if error_msg:
+            logger.warning("Jira client creation failed for team_id=%s, channel_id=%s: %s", team_id, channel_id, error_msg)
             return error_msg
         
         # Get JQL query from project settings
@@ -655,11 +744,14 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
         jql_query = settings.get("jira_bug_query", "").strip()
         
         if not jql_query:
+            logger.warning("Jira bug query (JQL) not set for team_id=%s, channel_id=%s", team_id, channel_id)
             return (
                 "Jira bug query (JQL) is not set for this project.\n"
                 "Please set it using: `set jira query <JQL query>`\n"
                 "Example: `set jira query project = PROJ AND status != Done`"
             )
+        
+        logger.debug("Executing JQL query for team_id=%s, channel_id=%s: %s", team_id, channel_id, jql_query)
         
         # Fetch issues using JQL
         try:
@@ -667,7 +759,13 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
             MAX_ISSUES = 50
             issues = jira.search_issues(jql_query, maxResults=MAX_ISSUES)
             
+            logger.info(
+                "Jira query executed successfully for team_id=%s, channel_id=%s. Found %s issue(s)",
+                team_id, channel_id, len(issues)
+            )
+            
             if not issues:
+                logger.debug("No issues found matching JQL query for team_id=%s, channel_id=%s", team_id, channel_id)
                 return f"No issues found matching the query:\n```{jql_query}```"
             
             # Format issues for display
@@ -679,6 +777,8 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
                 summary = issue.fields.summary
                 status = issue.fields.status.name
                 issue_type = issue.fields.issuetype.name
+                
+                logger.debug("Processing issue %s: %s (%s, %s)", key, summary, issue_type, status)
                 
                 # Build issue URL
                 jira_url = settings.get("jira_url", "").strip().rstrip('/')
@@ -694,6 +794,10 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
             
             return "\n".join(lines)
         except JIRAError as e:
+            logger.error(
+                "Jira API error fetching bugs for team_id=%s, channel_id=%s, JQL=%s, status_code=%s, error=%s",
+                team_id, channel_id, jql_query, e.status_code, e.text or str(e)
+            )
             logger.exception("Jira API error fetching bugs for team_id=%s", team_id)
             if e.status_code == 400:
                 return (
@@ -708,9 +812,15 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
             else:
                 return f"❌ Failed to fetch issues: {e.text or str(e)}"
         except Exception as e:
+            logger.error(
+                "Unexpected error fetching Jira bugs for team_id=%s, channel_id=%s, JQL=%s, error=%s",
+                team_id, channel_id, jql_query, str(e)
+            )
             logger.exception("Unexpected error fetching Jira bugs for team_id=%s", team_id)
             return f"❌ Failed to fetch issues: {str(e)}"
     except Exception as e:
+        logger.error("Exception in get_jira_bugs for team_id=%s, channel_id=%s: %s", team_id, channel_id, str(e))
+        logger.exception("Exception in get_jira_bugs")
         return get_mongodb_error_message(e, "get_jira_bugs")
 
 
