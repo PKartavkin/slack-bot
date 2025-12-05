@@ -16,12 +16,7 @@ def validate_environment_variables() -> None:
         "SLACK_BOT_TOKEN": "Slack bot token for authentication",
         "SLACK_SIGNING_SECRET": "Slack signing secret for request verification",
         "MONGO_URL": "MongoDB connection URL",
-    }
-    
-    optional_vars = {
-        "OPENAI_API_KEY": "OpenAI API key for bug report generation (optional)",
-        "PORT": "Server port (defaults to 3000 if not set)",
-        "ENV": "Environment (prod/dev, defaults to dev if not set)",
+        "OPENAI_API_KEY": "OpenAI API key for bug report generation",
     }
     
     missing_vars = []
@@ -41,14 +36,6 @@ def validate_environment_variables() -> None:
         logger.critical(error_message)
         print(error_message, file=sys.stderr)
         sys.exit(1)
-    
-    # Log optional variables status
-    for var_name, description in optional_vars.items():
-        value = os.getenv(var_name)
-        if not value or not value.strip():
-            logger.info(f"Optional environment variable not set: {var_name} - {description}")
-        else:
-            logger.debug(f"Environment variable set: {var_name}")
     
     # Log rate limiting configuration
     rate_limit_max = int(os.getenv("RATE_LIMIT_OPENAI_MAX", "100"))
