@@ -304,8 +304,8 @@ def set_jira_url(text: str, team_id: str, channel_id: str | None = None):
     url = unicodedata.normalize('NFKC', url)
     # Remove zero-width and other problematic invisible characters
     url = url.replace('\u200b', '').replace('\u200c', '').replace('\u200d', '').replace('\ufeff', '')
-    # Strip all types of whitespace (including non-breaking spaces)
-    url = url.strip().replace('\u00a0', ' ').strip()
+    # Replace non-breaking spaces with regular spaces, then strip once
+    url = url.replace('\u00a0', ' ').strip()
 
     if not url:
         return "Please provide a Jira URL. Example: `set jira url https://your-instance.atlassian.net`"
@@ -688,7 +688,7 @@ def get_jira_bugs(team_id: str, channel_id: str | None = None) -> str:
                 issue_type = issue.fields.issuetype.name
                 
                 # Build issue URL
-                jira_url = settings.get("jira_url", "").strip().rstrip('/')
+                jira_url = settings.get("jira_url", "").strip().rstrip('/')  # strip() then rstrip() is intentional
                 issue_url = f"{jira_url}/browse/{key}"
                 
                 lines.append(f"• *{key}*: {summary}")
@@ -746,9 +746,12 @@ Expected:
     }
 
     try:
-        # Atomically ensure org exists with required fields using upsert
-        # $setOnInsert only sets these fields if document is being created
+        # Optimized: Combine multiple updates into fewer operations
+        # First, ensure org exists and has required fields
         joined_date_str = datetime.utcnow().isoformat() + "Z"
+        
+        # Single update to ensure org exists with all required fields
+        # $setOnInsert only sets these fields if document is being created
         orgs.update_one(
             {"team_id": team_id},
             {
@@ -760,38 +763,39 @@ Expected:
             },
             upsert=True,
         )
-
-        # Atomically backfill/convert joined_date if needed
-        # These updates are safe because they use query conditions that match the state
-        # Multiple threads can run these safely - only one will succeed per condition
-        orgs.update_one(
-            {"team_id": team_id, "joined_date": {"$exists": False}},
-            {"$set": {"joined_date": datetime.utcnow().isoformat() + "Z"}},
-        )
         
-        # Convert datetime objects to ISO strings atomically
-        # Note: This requires checking if it's a datetime, which we do after fetching
-        # The conversion is safe because we check the type in the update condition
-        
-        # Atomically ensure channel_projects exists
-        orgs.update_one(
-            {"team_id": team_id, "channel_projects": {"$exists": False}},
-            {"$set": {"channel_projects": {}}},
-        )
-
-        # Fetch org after all atomic updates to get latest state
+        # Fetch org once to check current state
         org = orgs.find_one({"team_id": team_id})
         
-        # Handle datetime conversion if needed (one-time migration)
-        # This is safe because the update condition ensures atomicity - only converts if still a datetime
-        if org and isinstance(org.get("joined_date"), datetime):
-            joined_date_str = org["joined_date"].isoformat() + "Z"
-            orgs.update_one(
-                {"team_id": team_id, "joined_date": {"$type": "date"}},
-                {"$set": {"joined_date": joined_date_str}},
-            )
-            # Refetch to get the converted value (or value from another thread that converted it)
-            org = orgs.find_one({"team_id": team_id})
+        # Handle all updates in a single operation if needed
+        if org:
+            needs_update = False
+            update_fields = {}
+            
+            # Ensure channel_projects exists (only if missing)
+            if "channel_projects" not in org:
+                update_fields["channel_projects"] = {}
+                needs_update = True
+            
+            # Check if joined_date needs conversion or backfill
+            joined_date = org.get("joined_date")
+            if not joined_date:
+                # Backfill missing joined_date
+                update_fields["joined_date"] = joined_date_str
+                needs_update = True
+            elif isinstance(joined_date, datetime):
+                # Convert datetime to ISO string
+                update_fields["joined_date"] = joined_date.isoformat() + "Z"
+                needs_update = True
+            
+            # Perform single update if needed
+            if needs_update:
+                orgs.update_one(
+                    {"team_id": team_id},
+                    {"$set": update_fields},
+                )
+                # Update local org dict to avoid refetch
+                org.update(update_fields)
     except Exception as e:
         # Let exception propagate - calling functions will handle it
         raise
