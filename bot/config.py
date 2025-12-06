@@ -4,7 +4,7 @@ Configuration and environment variable validation.
 import os
 import sys
 
-from src.logger import logger
+from bot.logger import logger
 
 
 def validate_environment_variables() -> None:

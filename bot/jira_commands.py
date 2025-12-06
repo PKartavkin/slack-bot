@@ -6,9 +6,9 @@ import unicodedata
 from jira import JIRA
 from jira.exceptions import JIRAError
 
-from src.logger import logger
-from src.utils import strip_command, get_mongodb_error_message
-from src.constants import (
+from bot.logger import logger
+from bot.utils import strip_command, get_mongodb_error_message
+from bot.constants import (
     JIRA_CLIENT_TIMEOUT_SECONDS,
     MAX_JIRA_TOKEN_LENGTH,
     MIN_JIRA_TOKEN_LENGTH,
@@ -23,7 +23,7 @@ from src.constants import (
     HTTP_STATUS_UNAUTHORIZED,
     HTTP_STATUS_FORBIDDEN,
 )
-from src.project_commands import (
+from bot.project_commands import (
     _require_project,
     get_settings,
     _update_settings_field,

@@ -2,8 +2,8 @@ from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, ConfigurationError
 import os
 
-from src.logger import logger
-from src.constants import MONGODB_SERVER_SELECTION_TIMEOUT_MS
+from bot.logger import logger
+from bot.constants import MONGODB_SERVER_SELECTION_TIMEOUT_MS
 
 try:
     mongo_url = os.environ.get("MONGO_URL")

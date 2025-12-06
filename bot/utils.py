@@ -1,6 +1,6 @@
 import re
 
-from src.constants import MAX_SLACK_ID_LENGTH, MAX_PROJECT_NAME_LENGTH
+from bot.constants import MAX_SLACK_ID_LENGTH, MAX_PROJECT_NAME_LENGTH
 
 
 def contains(text: str, keywords: list[str]) -> bool:
@@ -204,7 +204,7 @@ def get_mongodb_error_message(error: Exception, operation_name: str = "operation
         OperationFailure,
         PyMongoError,
     )
-    from src.logger import logger
+    from bot.logger import logger
     
     logger.exception("MongoDB error in %s: %s", operation_name, str(error))
     

@@ -7,9 +7,9 @@ from datetime import datetime, timedelta
 from typing import Optional
 from pymongo.errors import PyMongoError
 
-from src.db import rate_limits
-from src.logger import logger
-from src.utils import sanitize_slack_id
+from bot.db import rate_limits
+from bot.logger import logger
+from bot.utils import sanitize_slack_id
 
 
 class RateLimiter:
