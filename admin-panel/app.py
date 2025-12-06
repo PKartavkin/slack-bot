@@ -74,7 +74,9 @@ def get_org_stats(team_id: str) -> dict:
                 "date_joined": "N/A",
                 "num_channels": 0,
                 "num_projects": 0,
-                "num_bot_invocations": 0
+                "num_bot_invocations": 0,
+                "num_openai_requests": 0,
+                "num_unknown_commands": 0
             }
         
         # Count channels
@@ -91,6 +93,9 @@ def get_org_stats(team_id: str) -> dict:
         # Get OpenAI requests
         num_openai_requests = org.get("openai_requests_total", 0)
         
+        # Get unknown commands
+        num_unknown_commands = org.get("unknown_commands", 0)
+        
         # Get joined date
         joined_date = org.get("joined_date", "")
         date_joined = format_date(joined_date) if joined_date else "N/A"
@@ -101,7 +106,8 @@ def get_org_stats(team_id: str) -> dict:
             "num_channels": num_channels,
             "num_projects": num_projects,
             "num_bot_invocations": num_bot_invocations,
-            "num_openai_requests": num_openai_requests
+            "num_openai_requests": num_openai_requests,
+            "num_unknown_commands": num_unknown_commands
         }
     except Exception as e:
         # Return default stats on error
@@ -111,7 +117,8 @@ def get_org_stats(team_id: str) -> dict:
             "num_channels": 0,
             "num_projects": 0,
             "num_bot_invocations": 0,
-            "num_openai_requests": 0
+            "num_openai_requests": 0,
+            "num_unknown_commands": 0
         }
 
 

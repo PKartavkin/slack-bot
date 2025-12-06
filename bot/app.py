@@ -41,7 +41,7 @@ from bot.commands import (
     list_projects,
     show_channel_status,
 )
-from bot.metrics import increment_bot_invocations
+from bot.metrics import increment_bot_invocations, increment_unknown_commands
 from bot.utils import contains, strip_command, strip_leading_mention
 
 # Validate environment variables at startup
@@ -61,7 +61,7 @@ handler = SlackRequestHandler(slack_app)
 
 # Main event handler
 @slack_app.event("app_mention")
-def handle_mention(event, say, body):
+async def handle_mention(event, say, body):
     raw_text = event.get("text", "") or ""
     # Strip leading '<@BOTID>' mention so length checks and commands work on real text.
     clean_text = strip_leading_mention(raw_text)
@@ -220,7 +220,10 @@ def handle_mention(event, say, body):
         return
 
     # Default fallback
-    logger.error(f"Failed to recognise the command: {text}")
+    logger.warning(f"Failed to parse: {clean_text}")
+    if team_id:
+        # Offload MongoDB write to thread pool so we don't block the event loop.
+        await run_in_threadpool(increment_unknown_commands, team_id)
     say("I did not understand that command.")
 
 

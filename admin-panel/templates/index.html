@@ -41,6 +41,10 @@
                             <span class="label">AI Invocations:</span>
                             <span class="value">{{ org.num_openai_requests }}</span>
                         </div>
+                        <div class="detail-row">
+                            <span class="label">Unknown commands:</span>
+                            <span class="value">{{ org.num_unknown_commands }}</span>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}

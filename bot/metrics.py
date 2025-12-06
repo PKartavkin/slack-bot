@@ -19,6 +19,7 @@ def init_or_get_org(team_id: str) -> dict:
                 "team_id": team_id,
                 "bot_invocations_total": 0,
                 "openai_requests_total": 0,
+                "unknown_commands": 0,
                 "joined_date": joined_date_str,
             }
             orgs.insert_one(org)
@@ -49,6 +50,7 @@ def init_or_get_org(team_id: str) -> dict:
             "team_id": team_id,
             "bot_invocations_total": 0,
             "openai_requests_total": 0,
+            "unknown_commands": 0,
             "joined_date": datetime.utcnow().isoformat() + "Z",
         }
 
@@ -92,4 +94,21 @@ def increment_openai_requests(team_id: str):
         )
     except Exception as e:
         logger.exception("Error incrementing OpenAI requests for team_id=%s: %s", team_id, e)
+        # Don't raise - metrics are non-critical
+
+def increment_unknown_commands(team_id: str):
+    """
+    Increment unknown commands counter for this org.
+    """
+    # Sanitize input to prevent MongoDB injection
+    team_id = sanitize_slack_id(team_id, "team_id")
+    try:
+        # Atomically increment counter
+        orgs.update_one(
+            {"team_id": team_id},
+            {"$inc": {"unknown_commands": 1}},
+            upsert=True  # ensures record exists even if first call
+        )
+    except Exception as e:
+        logger.exception("Error incrementing unknown commands for team_id=%s: %s", team_id, e)
         # Don't raise - metrics are non-critical
