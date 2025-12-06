@@ -362,7 +362,7 @@ def _get_jira_client(team_id: str, channel_id: str | None = None) -> tuple[JIRA 
         # Create Jira client with basic auth (email + API token)
         try:
             jira = JIRA(
-                server=jira_url,
+                options={'server': jira_url, 'rest_api_version': '3'},
                 basic_auth=(jira_email, jira_token),
                 timeout=JIRA_CLIENT_TIMEOUT_SECONDS,
             )
