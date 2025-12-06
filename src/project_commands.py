@@ -14,6 +14,31 @@ from src.utils import (
 )
 
 
+def _extract_and_sanitize_project_name(channel_info) -> str | None:
+    """
+    Extract and sanitize project name from channel_info.
+    Handles both old format (channel_id -> project_name) and new format (channel_id -> {project: name}).
+    
+    Args:
+        channel_info: The channel info from channel_projects dict (can be str or dict)
+        
+    Returns:
+        Sanitized project name, or None if invalid/not found
+    """
+    # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name})
+    project_name = channel_info.get("project") if isinstance(channel_info, dict) else channel_info
+    
+    if not project_name:
+        return None
+    
+    # Sanitize project name to prevent MongoDB injection
+    try:
+        return sanitize_project_name(project_name)
+    except ValueError:
+        logger.error("Invalid project name in channel_projects: %s", project_name)
+        return None
+
+
 def get_settings(team_id: str, channel_id: str | None = None):
     """
     Get project settings. bug_report_template and project_context are stored only in projects,
@@ -105,27 +130,11 @@ Expected:
     channel_projects = org.get("channel_projects") or {}
     channel_info = channel_projects.get(channel_id)
     
-    # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name, welcome_shown: bool})
-    if isinstance(channel_info, dict):
-        project_name = channel_info.get("project")
-    else:
-        project_name = channel_info
+    # Extract and sanitize project name
+    project_name = _extract_and_sanitize_project_name(channel_info)
 
     # If this channel is not yet bound to a specific project, return defaults
     if not project_name:
-        return PROJECT_DEFAULTS
-
-    # Sanitize project name to prevent MongoDB injection
-    try:
-        project_name = sanitize_project_name(project_name)
-    except ValueError:
-        logger.error(
-            "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
-            team_id,
-            channel_id,
-            project_name,
-        )
-        # Return defaults if project name is invalid
         return PROJECT_DEFAULTS
 
     # Get project-specific settings
@@ -230,6 +239,8 @@ def get_channel_project_name(team_id: str, channel_id: str) -> str | None:
     """
     Get the project name bound to a channel from channel_projects.
     Returns None if channel is not bound to a project.
+    Note: This returns the raw project name without sanitization (for backward compatibility).
+    Use _extract_and_sanitize_project_name() if you need sanitized project names.
     """
     # Sanitize inputs to prevent MongoDB injection
     team_id = sanitize_slack_id(team_id, "team_id")
@@ -395,25 +406,10 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
                 channel_projects = org.get("channel_projects") or {}
                 channel_info = channel_projects.get(channel_id)
                 
-                # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name})
-                if isinstance(channel_info, dict):
-                    project_name = channel_info.get("project")
-                else:
-                    project_name = channel_info
+                # Extract and sanitize project name
+                project_name = _extract_and_sanitize_project_name(channel_info)
                 
                 if project_name:
-                    # Sanitize project name to prevent MongoDB injection
-                    try:
-                        project_name = sanitize_project_name(project_name)
-                    except ValueError:
-                        logger.error(
-                            "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
-                            team_id,
-                            channel_id,
-                            project_name,
-                        )
-                        # Skip update if project name is invalid
-                        return
                     
                     # Update the bound project
                     orgs.update_one(
@@ -438,25 +434,10 @@ def _update_settings_field(team_id: str, channel_id: str | None, field: str, val
             channel_projects = org.get("channel_projects") or {}
             channel_info = channel_projects.get(channel_id)
             
-            # Handle both old format (channel_id -> project_name) and new format (channel_id -> {project: name})
-            if isinstance(channel_info, dict):
-                project_name = channel_info.get("project")
-            else:
-                project_name = channel_info
+            # Extract and sanitize project name
+            project_name = _extract_and_sanitize_project_name(channel_info)
                 
             if project_name:
-                # Sanitize project name to prevent MongoDB injection
-                try:
-                    project_name = sanitize_project_name(project_name)
-                except ValueError:
-                    logger.error(
-                        "Invalid project name in channel_projects for team_id=%s, channel_id=%s: %s",
-                        team_id,
-                        channel_id,
-                        project_name,
-                    )
-                    # Skip update if project name is invalid
-                    return
                 
                 orgs.update_one(
                     {"team_id": team_id},
