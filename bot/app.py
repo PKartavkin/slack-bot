@@ -61,7 +61,7 @@ handler = SlackRequestHandler(slack_app)
 
 # Main event handler
 @slack_app.event("app_mention")
-async def handle_mention(event, say, body):
+def handle_mention(event, say, body):
     raw_text = event.get("text", "") or ""
     # Strip leading '<@BOTID>' mention so length checks and commands work on real text.
     clean_text = strip_leading_mention(raw_text)
@@ -222,8 +222,8 @@ async def handle_mention(event, say, body):
     # Default fallback
     logger.warning(f"Failed to parse: {clean_text}")
     if team_id:
-        # Offload MongoDB write to thread pool so we don't block the event loop.
-        await run_in_threadpool(increment_unknown_commands, team_id)
+        # Increment unknown commands counter (non-blocking, won't raise exceptions)
+        increment_unknown_commands(team_id)
     say("I did not understand that command.")
 
 
