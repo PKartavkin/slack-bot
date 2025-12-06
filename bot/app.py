@@ -6,9 +6,9 @@ from slack_bolt import App
 from slack_bolt.adapter.fastapi import SlackRequestHandler
 from starlette.concurrency import run_in_threadpool
 
-from src.logger import logger
-from src.config import validate_environment_variables
-from src.constants import (
+from bot.logger import logger
+from bot.config import validate_environment_variables
+from bot.constants import (
     MIN_TEXT_LENGTH,
     MAX_TEXT_LENGTH,
     MIN_PROJECT_OVERVIEW_LENGTH,
@@ -16,7 +16,7 @@ from src.constants import (
     HTTP_STATUS_BAD_REQUEST,
     DEFAULT_PORT,
 )
-from src.commands import (
+from bot.commands import (
     generate_bug_report,
     get_help,
     update_project_overview,
@@ -41,8 +41,8 @@ from src.commands import (
     list_projects,
     show_channel_status,
 )
-from src.metrics import increment_bot_invocations
-from src.utils import contains, strip_command, strip_leading_mention
+from bot.metrics import increment_bot_invocations
+from bot.utils import contains, strip_command, strip_leading_mention
 
 # Validate environment variables at startup
 validate_environment_variables()
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "app:fastapi_app",
+        "bot.app:fastapi_app",
         host="0.0.0.0",
         port=int(os.getenv("PORT", DEFAULT_PORT)),
         reload=os.getenv("ENV") != "prod",

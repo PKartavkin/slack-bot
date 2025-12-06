@@ -9,7 +9,7 @@ This module has been split into smaller modules:
 All functions are re-exported here to maintain backward compatibility.
 """
 # Re-export all functions from the split modules
-from src.project_commands import (
+from bot.project_commands import (
     get_settings,
     set_channel_project,
     list_projects,
@@ -21,7 +21,7 @@ from src.project_commands import (
     _update_settings_field,
 )
 
-from src.bug_report_commands import (
+from bot.bug_report_commands import (
     generate_bug_report,
     show_bug_report_template,
     edit_bug_report_template,
@@ -30,7 +30,7 @@ from src.bug_report_commands import (
     set_use_documentation,
 )
 
-from src.jira_commands import (
+from bot.jira_commands import (
     set_jira_token,
     set_jira_url,
     set_jira_bug_query,
@@ -44,7 +44,7 @@ from src.jira_commands import (
     _get_jira_client,
 )
 
-from src.general_commands import (
+from bot.general_commands import (
     get_help,
 )
 

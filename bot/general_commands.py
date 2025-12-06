@@ -1,7 +1,7 @@
 """
 General utility commands like help.
 """
-from src.logger import logger
+from bot.logger import logger
 
 
 def get_help() -> str:

@@ -4,9 +4,9 @@ Core functions for managing projects, channels, and settings.
 """
 from datetime import datetime
 
-from src.db import orgs
-from src.logger import logger
-from src.utils import (
+from bot.db import orgs
+from bot.logger import logger
+from bot.utils import (
     strip_command,
     sanitize_slack_id,
     sanitize_project_name,

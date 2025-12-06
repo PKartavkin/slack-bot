@@ -1,0 +1,33 @@
+name: Deploy Admin Panel to Railway
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy_admin_panel:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Docker cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-admin-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-admin-
+
+      - name: Install Railway CLI
+        run: |
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Deploy Admin Panel to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway up --ci --dockerfile admin-panel/Dockerfile --service ${{ secrets.RAILWAY_ADMIN_PANEL_SERVICE_ID }}
+          echo "Admin panel deploy finished!"

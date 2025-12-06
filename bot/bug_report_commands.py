@@ -6,16 +6,16 @@ import os
 from openai import OpenAI
 from openai import APITimeoutError
 
-from src.logger import logger
-from src.utils import strip_command, get_mongodb_error_message
-from src.rate_limiter import openai_rate_limiter
-from src.constants import (
+from bot.logger import logger
+from bot.utils import strip_command, get_mongodb_error_message
+from bot.rate_limiter import openai_rate_limiter
+from bot.constants import (
     OPENAI_API_TIMEOUT_SECONDS,
     OPENAI_TEMPERATURE,
     OPENAI_MODEL,
     MAX_BUG_REPORT_INPUT_LENGTH,
 )
-from src.project_commands import (
+from bot.project_commands import (
     _require_project,
     get_settings,
     _update_settings_field,

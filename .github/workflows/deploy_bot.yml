@@ -1,10 +1,10 @@
-name: Deploy to Railway
+name: Deploy Bot to Railway
 
 on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  deploy_bot:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -25,9 +25,9 @@ jobs:
           curl -fsSL https://railway.app/install.sh | sh
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
-      - name: Deploy to Railway
+      - name: Deploy Bot to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway up --ci --service ${{ secrets.RAILWAY_SERVICE_ID }}
+          railway up --ci --dockerfile bot/Dockerfile --service ${{ secrets.RAILWAY_SERVICE_ID }}
           echo "Deploy finished! Check: slack-bot-production-07ad.up.railway.app"
