@@ -74,8 +74,7 @@ def get_org_stats(team_id: str) -> dict:
                 "date_joined": "N/A",
                 "num_channels": 0,
                 "num_projects": 0,
-                "num_bot_invocations": 0,
-                "project_descriptions": {}
+                "num_bot_invocations": 0
             }
         
         # Count channels
@@ -93,21 +92,12 @@ def get_org_stats(team_id: str) -> dict:
         joined_date = org.get("joined_date", "")
         date_joined = format_date(joined_date) if joined_date else "N/A"
         
-        # Get project descriptions (project_context from each project)
-        project_descriptions = {}
-        if projects:
-            for project_name, project_data in projects.items():
-                project_context = project_data.get("project_context", "").strip()
-                if project_context:
-                    project_descriptions[project_name] = project_context
-        
         return {
             "client_id": team_id,
             "date_joined": date_joined,
             "num_channels": num_channels,
             "num_projects": num_projects,
-            "num_bot_invocations": num_bot_invocations,
-            "project_descriptions": project_descriptions
+            "num_bot_invocations": num_bot_invocations
         }
     except Exception as e:
         # Return default stats on error
@@ -116,8 +106,7 @@ def get_org_stats(team_id: str) -> dict:
             "date_joined": "N/A",
             "num_channels": 0,
             "num_projects": 0,
-            "num_bot_invocations": 0,
-            "project_descriptions": {}
+            "num_bot_invocations": 0
         }
 
 

@@ -37,16 +37,6 @@
                             <span class="label">Bot Invocations:</span>
                             <span class="value">{{ org.num_bot_invocations }}</span>
                         </div>
-                        <div class="detail-row">
-                            <button 
-                                class="btn-description" 
-                                data-client-id="{{ org.client_id }}"
-                                data-descriptions="{{ org.project_descriptions | tojson | e }}"
-                                onclick="showDescription(this)"
-                                {% if not org.project_descriptions %}disabled{% endif %}>
-                                Project Description
-                            </button>
-                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -58,72 +48,5 @@
             {% endif %}
         </main>
     </div>
-    
-    <!-- Modal for project description -->
-    <div id="descriptionModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 id="modalTitle">Project Description</h3>
-            </div>
-            <div class="modal-body" id="modalBody">
-                <!-- Content will be inserted here -->
-            </div>
-            <div class="modal-footer">
-                <button class="btn-close" onclick="closeDescription()">Close</button>
-            </div>
-        </div>
-    </div>
-    
-    <script>
-        function showDescription(button) {
-            const clientId = button.getAttribute('data-client-id');
-            const descriptionsJson = button.getAttribute('data-descriptions');
-            const modal = document.getElementById('descriptionModal');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalBody = document.getElementById('modalBody');
-            
-            let descriptions = {};
-            try {
-                descriptions = JSON.parse(descriptionsJson || '{}');
-            } catch (e) {
-                descriptions = {};
-            }
-            
-            if (!descriptions || Object.keys(descriptions).length === 0) {
-                modalBody.innerHTML = '<p>No project descriptions available.</p>';
-            } else {
-                let html = '';
-                for (const [projectName, description] of Object.entries(descriptions)) {
-                    html += `<div class="project-description-item">`;
-                    html += `<h4>${escapeHtml(projectName)}</h4>`;
-                    html += `<pre>${escapeHtml(description)}</pre>`;
-                    html += `</div>`;
-                }
-                modalBody.innerHTML = html;
-            }
-            
-            modalTitle.textContent = `Project Descriptions - ${escapeHtml(clientId)}`;
-            modal.style.display = 'block';
-        }
-        
-        function closeDescription() {
-            const modal = document.getElementById('descriptionModal');
-            modal.style.display = 'none';
-        }
-        
-        function escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
-        // Close modal when clicking outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById('descriptionModal');
-            if (event.target == modal) {
-                closeDescription();
-            }
-        }
-    </script>
 </body>
 </html>
