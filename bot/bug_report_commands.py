@@ -9,6 +9,7 @@ from openai import APITimeoutError
 from bot.logger import logger
 from bot.utils import strip_command, get_mongodb_error_message
 from bot.rate_limiter import openai_rate_limiter
+from bot.metrics import increment_openai_requests
 from bot.constants import (
     OPENAI_API_TIMEOUT_SECONDS,
     OPENAI_TEMPERATURE,
@@ -112,6 +113,9 @@ def generate_bug_report(text: str, team_id: str, channel_id: str | None = None) 
             "I couldn't generate a bug report from this message. "
             "Please try rephrasing or adding more details."
         )
+
+    # Increment OpenAI requests counter after successful API call
+    increment_openai_requests(team_id)
 
     return content
 
